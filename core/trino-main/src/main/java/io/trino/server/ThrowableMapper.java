@@ -15,7 +15,7 @@ package io.trino.server;
 
 import com.google.common.base.Throwables;
 import com.google.inject.Inject;
-import io.airlift.jaxrs.ParsingException;
+import io.airlift.jaxrs.JsonParsingException;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.InternalServerErrorException;
@@ -88,6 +88,9 @@ public class ThrowableMapper
                     .entity(Throwables.getStackTraceAsString(parsingException))
                     .build();
             case WebApplicationException webApplicationException -> webApplicationException.getResponse();
+            case JsonParsingException parsingException -> Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Throwables.getStackTraceAsString(parsingException))
+                    .build();
             default -> {
                 ResponseBuilder responseBuilder = plainTextError(Response.Status.INTERNAL_SERVER_ERROR);
                 if (includeExceptionInResponse) {
