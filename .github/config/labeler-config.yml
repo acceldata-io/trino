@@ -27,6 +27,54 @@ mongodb:
   - changed-files:
     - any-glob-to-any-file: 'plugin/trino-mongodb/**'
 
+mysql:
+  - changed-files:
+    - any-glob-to-any-file: 'plugin/trino-mysql/**'
+
+opensearch:
+  - changed-files:
+    - any-glob-to-any-file: 'plugin/trino-opensearch/**'
+
+oracle:
+  - changed-files:
+    - any-glob-to-any-file: 'plugin/trino-oracle/**'
+
+pinot:
+  - changed-files:
+    - any-glob-to-any-file: 'plugin/trino-pinot/**'
+
+postgresql:
+  - changed-files:
+    - any-glob-to-any-file: 'plugin/trino-postgresql/**'
+
+prometheus:
+  - changed-files:
+    - any-glob-to-any-file: 'plugin/trino-prometheus/**'
+
+redis:
+  - changed-files:
+    - any-glob-to-any-file: 'plugin/trino-redis/**'
+
+redshift:
+  - changed-files:
+    - any-glob-to-any-file: 'plugin/trino-redshift/**'
+
+singlestore:
+  - changed-files:
+    - any-glob-to-any-file: 'plugin/trino-singlestore/**'
+
+snowflake:
+  - changed-files:
+    - any-glob-to-any-file: 'plugin/trino-snowflake/**'
+
+sqlserver:
+  - changed-files:
+    - any-glob-to-any-file: 'plugin/trino-sqlserver/**'
+
+vertica:
+  - changed-files:
+    - any-glob-to-any-file: 'plugin/trino-vertica/**'
+
 docs:
   - changed-files:
     - any-glob-to-any-file: 'docs/**'
