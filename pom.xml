@@ -198,6 +198,7 @@
 
         <!-- keep dependency properties sorted -->
         <dep.airlift.version>293</dep.airlift.version>
+        <dep.airlift.version>315</dep.airlift.version>
         <dep.alluxio.version>2.9.6</dep.alluxio.version>
         <dep.antlr.version>4.13.2</dep.antlr.version>
         <dep.avro.version>1.12.0</dep.avro.version>
@@ -703,6 +704,13 @@
                 <groupId>io.airlift</groupId>
                 <artifactId>bytecode</artifactId>
                 <version>1.6</version>
+            </dependency>
+
+            <!-- temporary until its included in the bom -->
+            <dependency>
+                <groupId>io.airlift</groupId>
+                <artifactId>configuration-testing</artifactId>
+                <version>${dep.airlift.version}</version>
             </dependency>
 
             <dependency>
