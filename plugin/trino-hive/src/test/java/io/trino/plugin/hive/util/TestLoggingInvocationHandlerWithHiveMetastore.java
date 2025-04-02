@@ -13,6 +13,7 @@
  */
 package io.trino.plugin.hive.util;
 
+import io.trino.hive.thrift.metastore.GetTableRequest;
 import io.trino.hive.thrift.metastore.ThriftHiveMetastore;
 import io.trino.plugin.base.util.LoggingInvocationHandler;
 import org.assertj.core.api.InstanceOfAssertFactories;
@@ -39,12 +40,13 @@ public class TestLoggingInvocationHandlerWithHiveMetastore
         ThriftHiveMetastore.Iface proxy = newProxy(
                 ThriftHiveMetastore.Iface.class,
                 new LoggingInvocationHandler(dummyThriftHiveMetastoreClient(), messages::add));
-        proxy.getTable("some_database", "some_table_name");
+        GetTableRequest request = new GetTableRequest("some_database", "some_table_name");
+        proxy.getTableReq(request);
         assertThat(messages)
                 .hasSize(1)
                 .element(0)
                 .asInstanceOf(InstanceOfAssertFactories.STRING)
-                .matches("\\QInvocation of getTable(dbname='some_database', tbl_name='some_table_name') succeeded in\\E " + DURATION_PATTERN);
+                .matches("\\QInvocation of getTableReq(req=GetTableRequest(dbName:some_database, tblName:some_table_name, engine:hive)) succeeded in\\E " + DURATION_PATTERN);
     }
 
     private static ThriftHiveMetastore.Iface dummyThriftHiveMetastoreClient()
