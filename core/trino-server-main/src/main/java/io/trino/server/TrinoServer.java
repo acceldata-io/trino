@@ -16,6 +16,8 @@ package io.trino.server;
 import com.google.common.base.StandardSystemProperty;
 import com.google.common.primitives.Ints;
 
+import java.util.Optional;
+
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Strings.nullToEmpty;
 
@@ -33,7 +35,9 @@ public final class TrinoServer
             System.exit(100);
         }
 
-        String version = TrinoServer.class.getPackage().getImplementationVersion();
+        String version = Optional
+                .ofNullable(System.getProperty("overrideVersion"))
+                .orElse(TrinoServer.class.getPackage().getImplementationVersion());
         new Server().start(firstNonNull(version, "unknown"));
     }
 }
