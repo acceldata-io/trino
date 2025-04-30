@@ -10,7 +10,7 @@
 
     <groupId>io.trino</groupId>
     <artifactId>trino-root</artifactId>
-    <version>472.3.2.3.3-3</version>
+    <version>472.3.3.6.1-1</version>
     <packaging>pom</packaging>
 
     <name>${project.artifactId}</name>
@@ -1574,13 +1574,13 @@
             <dependency>
                 <groupId>io.trino.hadoop</groupId>
                 <artifactId>hadoop-apache</artifactId>
-                <version>3.3.5-3.3.2.3.3-3</version>
+                <version>3.3.5-3.3.3.6.1-1</version>
             </dependency>
 
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-apache</artifactId>
-                <version>3.1.2-23.3.2.3.3-3</version>
+                <version>3.1.2-23.3.3.6.1-1</version>
                 <exclusions>
                     <exclusion>
                         <groupId>javax.annotation</groupId>
@@ -1606,7 +1606,7 @@
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-thrift</artifactId>
-                <version>3.1.4.3.2.3.3-3</version>
+                <version>3.1.4.3.3.6.1-1</version>
             </dependency>
 
             <dependency>
