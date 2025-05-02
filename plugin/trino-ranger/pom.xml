@@ -16,8 +16,8 @@
     <description>Trino - Apache Ranger access control</description>
 
     <properties>
-        <dep.graalvm.version>24.1.1</dep.graalvm.version>
-        <dep.ranger.version>2.5.0</dep.ranger.version>
+        <dep.graalvm.version>24.1.2</dep.graalvm.version>
+        <dep.ranger.version>2.5.0.3.3.6.3-1</dep.ranger.version>
     </properties>
 
     <dependencies>
