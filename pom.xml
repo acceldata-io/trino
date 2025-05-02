@@ -1580,7 +1580,7 @@
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-apache</artifactId>
-                <version>3.1.2-23.3.3.6.1-1</version>
+                <version>3.1.2-24-3.3.6.1-1</version>
                 <exclusions>
                     <exclusion>
                         <groupId>javax.annotation</groupId>
@@ -1600,7 +1600,7 @@
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-apache-jdbc</artifactId>
-                <version>0.13.1-10-3.2.3.3-3</version>
+                <version>0.13.1-10-3.3.6.1-1</version>
             </dependency>
 
             <dependency>
