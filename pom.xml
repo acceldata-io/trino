@@ -146,6 +146,19 @@
         <url>https://github.com/trinodb/trino</url>
     </scm>
 
+    <distributionManagement>
+        <repository>
+            <id>nexus-releases</id>
+            <name>Releases</name>
+            <url>https://repo1.acceldata.dev/repository/odp-release/</url>
+        </repository>
+        <snapshotRepository>
+            <id>nexus-snapshots</id>
+            <name>Snapshot</name>
+            <url>https://repo1.acceldata.dev/repository/odp-snapshot/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
     <properties>
         <project.build.targetJdk>23</project.build.targetJdk>
         <!-- for reproducible build support, updated by release plugin -->
@@ -2384,19 +2397,6 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-
-    <distributionManagement>
-        <repository>
-          <id>nexus-releases</id>
-          <name>Releases</name>
-          <url>https://repo1.acceldata.dev/repository/odp-release/</url>
-        </repository>
-   	<snapshotRepository>
-     	  <id>nexus-snapshots</id>
-     	  <name>Snapshot</name>
-     	  <url>https://repo1.acceldata.dev/repository/odp-snapshot/</url>
-   	</snapshotRepository>
-    </distributionManagement>
 
     <build>
         <pluginManagement>
