@@ -54,17 +54,6 @@
             <groupId>jakarta.validation</groupId>
             <artifactId>jakarta.validation-api</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-client-runtime</artifactId>
-            <version>3.3.6.3.3.6.1-1</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-hdfs-client</artifactId>
-            <version>3.3.6.3.3.6.1-1</version>
-        </dependency>
 
         <dependency>
             <groupId>org.apache.ranger</groupId>
@@ -253,18 +242,4 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <configuration>
-                    <ignoredUnusedDeclaredDependencies>
-                        <ignoredUnusedDeclaredDependency>org.apache.hadoop:hadoop-hdfs-client</ignoredUnusedDeclaredDependency>
-                        <ignoredUnusedDeclaredDependency>org.apache.hadoop:hadoop-client-runtime</ignoredUnusedDeclaredDependency>
-                    </ignoredUnusedDeclaredDependencies>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
 </project>
