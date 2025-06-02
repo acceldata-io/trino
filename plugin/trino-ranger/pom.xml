@@ -18,7 +18,7 @@
     <properties>
         <dep.graalvm.version>24.1.2</dep.graalvm.version>
         <dep.ranger.version>2.5.0.3.3.6.3-1</dep.ranger.version>
-        <jetty-client.version>9.4.49.v20220914</jetty-client.version>
+        <jetty-client.version>9.4.56.v20240826</jetty-client.version>
     </properties>
 
     <dependencyManagement>
@@ -28,6 +28,11 @@
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-client</artifactId>
                 <version>${jetty-client.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpclient</artifactId>
+                <version>4.5.13</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
