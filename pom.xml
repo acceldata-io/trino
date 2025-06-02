@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.airlift</groupId>
         <artifactId>airbase</artifactId>
-        <version>262</version>
+        <version>268</version>
     </parent>
 
     <groupId>io.trino</groupId>
@@ -201,6 +201,7 @@
         <dep.aws-sdk.version>1.12.782</dep.aws-sdk.version>
         <dep.cassandra.version>4.17.0</dep.cassandra.version>
         <dep.confluent.version>7.8.0</dep.confluent.version>
+        <dep.checkstyle.version>10.23.1</dep.checkstyle.version>
         <dep.docker.images.version>110</dep.docker.images.version>
         <dep.drift.version>1.22</dep.drift.version>
         <dep.flyway.version>11.3.4</dep.flyway.version>
