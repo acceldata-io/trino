@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.trino</groupId>
         <artifactId>trino-root</artifactId>
-        <version>472.3.3.6.1-SNAPSHOT</version>
+        <version>472.3.3.6.2-1</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -16,12 +16,22 @@
 
     <properties>
         <dep.graalvm.version>24.1.2</dep.graalvm.version>
-        <dep.ranger.version>2.5.0.3.3.6.1-SNAPSHOT</dep.ranger.version>
-        <jetty-client.version>9.4.49.v20220914</jetty-client.version>
+        <dep.ranger.version>2.5.0.3.3.6.2-1</dep.ranger.version>
+        <jetty-client.version>9.4.56.v20240826</jetty-client.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpclient</artifactId>
+                <version>4.5.13</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpcore-nio</artifactId>
+                <version>4.4.14</version>
+            </dependency>
             <dependency>
                 <!-- for hdfs audit -->
                 <groupId>org.eclipse.jetty</groupId>
@@ -32,6 +42,7 @@
     </dependencyManagement>
 
     <dependencies>
+
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
@@ -163,6 +174,22 @@
             <artifactId>zookeeper</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <dependency>
+            <groupId>org.elasticsearch.client</groupId>
+            <artifactId>elasticsearch-rest-client</artifactId>
+            <version>7.17.26</version>
+            <scope>runtime</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.httpcomponents</groupId>
+                    <artifactId>httpclient</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
 
         <dependency>
             <groupId>org.graalvm.js</groupId>
@@ -221,6 +248,12 @@
             <artifactId>truffle-api</artifactId>
             <version>${dep.graalvm.version}</version>
             <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.airlift</groupId>
+            <artifactId>configuration-testing</artifactId>
+            <scope>test</scope>
         </dependency>
 
         <dependency>

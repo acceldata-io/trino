@@ -5,12 +5,12 @@
     <parent>
         <groupId>io.airlift</groupId>
         <artifactId>airbase</artifactId>
-        <version>229</version>
+        <version>268</version>
     </parent>
 
     <groupId>io.trino</groupId>
     <artifactId>trino-root</artifactId>
-    <version>472.3.3.6.1-SNAPSHOT</version>
+    <version>472.3.3.6.2-1</version>
     <packaging>pom</packaging>
 
     <name>${project.artifactId}</name>
@@ -86,7 +86,6 @@
         <module>plugin/trino-jmx</module>
         <module>plugin/trino-kafka</module>
         <module>plugin/trino-kafka-event-listener</module>
-        <module>plugin/trino-kudu</module>
         <module>plugin/trino-loki</module>
         <module>plugin/trino-mariadb</module>
         <module>plugin/trino-memory</module>
@@ -195,13 +194,14 @@
         <air.test.jvm.additional-arguments>${air.test.jvm.additional-arguments.default}</air.test.jvm.additional-arguments>
 
         <!-- keep dependency properties sorted -->
-        <dep.airlift.version>312</dep.airlift.version>
+        <dep.airlift.version>338</dep.airlift.version>
         <dep.alluxio.version>2.9.6</dep.alluxio.version>
         <dep.antlr.version>4.13.2</dep.antlr.version>
         <dep.avro.version>1.12.0</dep.avro.version>
         <dep.aws-sdk.version>1.12.782</dep.aws-sdk.version>
         <dep.cassandra.version>4.17.0</dep.cassandra.version>
         <dep.confluent.version>7.8.0</dep.confluent.version>
+        <dep.checkstyle.version>10.23.1</dep.checkstyle.version>
         <dep.docker.images.version>110</dep.docker.images.version>
         <dep.drift.version>1.22</dep.drift.version>
         <dep.flyway.version>11.3.4</dep.flyway.version>
@@ -210,15 +210,15 @@
         <dep.frontend-npm.version>11.1.0</dep.frontend-npm.version>
         <dep.gib.version>4.5.4</dep.gib.version>
         <dep.google.http.client.version>1.46.3</dep.google.http.client.version>
-        <dep.httpcore5.version>5.3.3</dep.httpcore5.version>
+        <dep.httpcore5.version>5.3.4</dep.httpcore5.version>
         <dep.iceberg.version>1.8.1</dep.iceberg.version>
         <dep.jna.version>5.16.0</dep.jna.version>
         <dep.joda.version>2.13.1</dep.joda.version>
         <dep.jsonwebtoken.version>0.12.6</dep.jsonwebtoken.version>
         <dep.jts.version>1.20.0</dep.jts.version>
-        <dep.kafka-clients.version>3.7.1.3.3.6.1-SNAPSHOT</dep.kafka-clients.version>
+        <dep.kafka-clients.version>3.7.2.3.3.6.2-1</dep.kafka-clients.version>
         <dep.okio.version>3.10.2</dep.okio.version>
-        <dep.parquet.version>1.15.0</dep.parquet.version>
+        <dep.parquet.version>1.15.2</dep.parquet.version>
         <dep.plugin.failsafe.version>${dep.plugin.surefire.version}</dep.plugin.failsafe.version>
         <dep.protobuf.version>3.25.6</dep.protobuf.version>
         <dep.snowflake.version>3.23.0</dep.snowflake.version>
@@ -227,7 +227,7 @@
         <dep.tcnative.version>2.0.70.Final</dep.tcnative.version>
         <dep.tempto.version>202</dep.tempto.version>
         <dep.wire.version>5.2.1</dep.wire.version>
-        <dep.zookeeper.version>3.8.4.3.3.6.1-SNAPSHOT</dep.zookeeper.version>
+        <dep.zookeeper.version>3.8.4.3.3.6.2-1</dep.zookeeper.version>
         <extraJavaVectorArgs>--add-modules=jdk.incubator.vector</extraJavaVectorArgs>
         <!--
         Instructs Provisio to write runtime dependencies in the format groupId_artifactId-version.jar.
@@ -511,7 +511,7 @@
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>failureaccess</artifactId>
-                <version>1.0.2</version>
+                <version>1.0.3</version>
             </dependency>
 
             <dependency>
@@ -584,7 +584,7 @@
             <dependency>
                 <groupId>com.opencsv</groupId>
                 <artifactId>opencsv</artifactId>
-                <version>5.10</version>
+                <version>5.11.1</version>
             </dependency>
 
             <dependency>
@@ -665,6 +665,7 @@
                 <artifactId>joni</artifactId>
                 <version>2.1.5.3</version>
             </dependency>
+
             <dependency>
                 <groupId>io.airlift</groupId>
                 <artifactId>junit-extensions</artifactId>
@@ -1587,13 +1588,13 @@
             <dependency>
                 <groupId>io.trino.hadoop</groupId>
                 <artifactId>hadoop-apache</artifactId>
-                <version>3.3.5-3.3.3.6.1-SNAPSHOT</version>
+                <version>3.3.5-3.3.3.6.2-1</version>
             </dependency>
 
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-apache</artifactId>
-                <version>3.1.2-24-3.3.6.1-SNAPSHOT</version>
+                <version>3.1.2-24-3.3.6.2-1</version>
                 <exclusions>
                     <exclusion>
                         <groupId>javax.annotation</groupId>
@@ -1613,13 +1614,13 @@
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-apache-jdbc</artifactId>
-                <version>0.13.1-10-3.3.6.1-SNAPSHOT</version>
+                <version>0.13.1-10-3.3.6.2-1</version>
             </dependency>
 
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-thrift</artifactId>
-                <version>3.1.4.3.3.6.1-SNAPSHOT</version>
+                <version>3.1.4.3.3.6.2-1</version>
             </dependency>
 
             <dependency>
@@ -1909,7 +1910,7 @@
             <dependency>
                 <groupId>org.apache.httpcomponents.client5</groupId>
                 <artifactId>httpclient5</artifactId>
-                <version>5.4.2</version>
+                <version>5.5</version>
             </dependency>
 
             <dependency>
@@ -2405,9 +2406,6 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
                     <version>3.1.4</version>
-                    <configuration>
-                        <skip>true</skip>
-                    </configuration>
                     <executions>
                         <execution>
                             <id>default-deploy</id>

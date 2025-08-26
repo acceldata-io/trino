@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.trino</groupId>
         <artifactId>trino-root</artifactId>
-        <version>472.3.3.6.1-SNAPSHOT</version>
+        <version>472.3.3.6.2-1</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -508,6 +508,7 @@
                                     <excludes>
                                         <exclude>org/jetbrains/**</exclude>
                                         <exclude>org/intellij/**</exclude>
+                                        <exclude>org/jspecify/**</exclude>
                                         <exclude>com/google/errorprone/**</exclude>
                                         <exclude>META-INF/maven/**</exclude>
                                         <exclude>META-INF/licenses/**</exclude>
@@ -533,6 +534,17 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.basepom.maven</groupId>
+                <artifactId>duplicate-finder-maven-plugin</artifactId>
+                <configuration>
+                    <ignoredResourcePatterns combine.children="append">
+                        <!-- com.google.protobuf:protobuf-java and io.trino.hadoop:hadoop-apache proto file duplicate -->
+                        <ignoredResourcePattern>google/protobuf/.*\.proto$</ignoredResourcePattern>
+                    </ignoredResourcePatterns>
+                </configuration>
             </plugin>
         </plugins>
     </build>
