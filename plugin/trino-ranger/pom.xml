@@ -16,8 +16,18 @@
 
     <properties>
         <dep.graalvm.version>24.1.2</dep.graalvm.version>
-        <dep.ranger.version>2.6.0</dep.ranger.version>
+        <dep.ranger.version>2.5.0.3.2.3.4-2</dep.ranger.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpclient</artifactId>
+                <version>4.5.13</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -142,6 +152,10 @@
                 <exclusion>
                     <groupId>org.apache.hadoop</groupId>
                     <artifactId>hadoop-common</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.httpcomponents</groupId>
+                    <artifactId>httpclient</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
