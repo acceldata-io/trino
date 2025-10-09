@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.trino</groupId>
         <artifactId>trino-root</artifactId>
-        <version>472.3.3.6.2-101</version>
+        <version>472.3.3.6.2-10101</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -16,7 +16,7 @@
 
     <properties>
         <dep.graalvm.version>24.1.2</dep.graalvm.version>
-        <dep.ranger.version>2.5.0.3.3.6.2-101</dep.ranger.version>
+        <dep.ranger.version>2.5.0.3.3.6.2-10101</dep.ranger.version>
         <jetty-client.version>9.4.56.v20240826</jetty-client.version>
     </properties>
 
