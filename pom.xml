@@ -10,7 +10,7 @@
 
     <groupId>io.trino</groupId>
     <artifactId>trino-root</artifactId>
-    <version>472.3.2.3.4-2003</version>
+    <version>472.3.2.3.4-2</version>
     <packaging>pom</packaging>
 
     <name>${project.artifactId}</name>
@@ -215,7 +215,7 @@
         <dep.joda.version>2.13.1</dep.joda.version>
         <dep.jsonwebtoken.version>0.12.6</dep.jsonwebtoken.version>
         <dep.jts.version>1.20.0</dep.jts.version>
-        <dep.kafka-clients.version>3.7.2.3.2.3.4-2003</dep.kafka-clients.version>
+        <dep.kafka-clients.version>3.7.2.3.2.3.4-2</dep.kafka-clients.version>
         <dep.okio.version>3.10.2</dep.okio.version>
         <dep.parquet.version>1.15.0</dep.parquet.version>
         <dep.plugin.failsafe.version>${dep.plugin.surefire.version}</dep.plugin.failsafe.version>
@@ -226,7 +226,7 @@
         <dep.tcnative.version>2.0.70.Final</dep.tcnative.version>
         <dep.tempto.version>202</dep.tempto.version>
         <dep.wire.version>5.2.1</dep.wire.version>
-        <dep.zookeeper.version>3.5.10.3.2.3.4-2003</dep.zookeeper.version>
+        <dep.zookeeper.version>3.5.10.3.2.3.4-2</dep.zookeeper.version>
         <extraJavaVectorArgs>--add-modules=jdk.incubator.vector</extraJavaVectorArgs>
         <!--
         Instructs Provisio to write runtime dependencies in the format groupId_artifactId-version.jar.
@@ -1586,13 +1586,13 @@
             <dependency>
                 <groupId>io.trino.hadoop</groupId>
                 <artifactId>hadoop-apache</artifactId>
-                <version>3.2.3-3.2.3.4-2003</version>
+                <version>3.2.3-3.2.3.4-2</version>
             </dependency>
 
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-apache</artifactId>
-                <version>3.1.2-23.3.2.3.4-2003</version>
+                <version>3.1.2-23.3.2.3.4-2</version>
                 <exclusions>
                     <exclusion>
                         <groupId>javax.annotation</groupId>
@@ -1612,13 +1612,13 @@
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-apache-jdbc</artifactId>
-                <version>3.1.4.3.2.3.4-2003</version>
+                <version>3.1.4.3.2.3.4-2</version>
             </dependency>
 
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-thrift</artifactId>
-                <version>3.1.4.3.2.3.4-2003</version>
+                <version>3.1.4.3.2.3.4-2</version>
             </dependency>
 
             <dependency>
