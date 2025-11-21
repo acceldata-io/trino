@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.trino</groupId>
         <artifactId>trino-root</artifactId>
-        <version>472.3.2.3.4-2</version>
+        <version>472.3.2.3.4-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -15,8 +15,8 @@
 
     <properties>
         <air.compiler.fail-warnings>true</air.compiler.fail-warnings>
-        <dep.hbase.version>2.5.10.3.2.3.4-2</dep.hbase.version>
-        <dep.phoenix5.version>5.2.1.3.2.3.4-2</dep.phoenix5.version>
+        <dep.hbase.version>2.5.10.3.2.3.4-SNAPSHOT</dep.hbase.version>
+        <dep.phoenix5.version>5.2.1.3.2.3.4-SNAPSHOT</dep.phoenix5.version>
 
         <!-- This is required for JDK 17 to start HBase server due to illegal reflective access -->
         <air.test.jvm.additional-arguments>${air.test.jvm.additional-arguments.default} --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED</air.test.jvm.additional-arguments>

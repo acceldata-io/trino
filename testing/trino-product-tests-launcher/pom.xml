@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.trino</groupId>
         <artifactId>trino-root</artifactId>
-        <version>472.3.2.3.4-2</version>
+        <version>472.3.2.3.4-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -256,7 +256,7 @@
                                     <groupId>org.apache.hive</groupId>
                                     <artifactId>hive-jdbc</artifactId>
                                     <classifier>standalone</classifier>
-                                    <version>3.1.4.3.2.3.4-2</version>
+                                    <version>3.1.4.3.2.3.4-SNAPSHOT</version>
                                     <type>jar</type>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                     <destFileName>hive-jdbc.jar</destFileName>
