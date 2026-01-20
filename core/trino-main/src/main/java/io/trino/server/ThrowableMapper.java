@@ -85,9 +85,6 @@ public class ThrowableMapper
             case TimeoutException timeoutException -> plainTextError(Response.Status.REQUEST_TIMEOUT)
                     .entity("Error 408 Timeout: " + timeoutException.getMessage())
                     .build();
-            case ParsingException parsingException -> Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Throwables.getStackTraceAsString(parsingException))
-                    .build();
             case WebApplicationException webApplicationException -> webApplicationException.getResponse();
             case JsonParsingException parsingException -> Response.status(Response.Status.BAD_REQUEST)
                     .entity(Throwables.getStackTraceAsString(parsingException))
