@@ -217,7 +217,7 @@
         <dep.joda.version>2.12.7</dep.joda.version>
         <dep.jsonwebtoken.version>0.12.6</dep.jsonwebtoken.version>
         <dep.jts.version>1.20.0</dep.jts.version>
-        <dep.kafka-clients.version>3.7.1.3.3.6.1-1</dep.kafka-clients.version>
+        <dep.kafka-clients.version>3.7.2.3.3.6.3-1</dep.kafka-clients.version>
         <dep.okio.version>3.9.1</dep.okio.version>
         <dep.parquet.version>1.15.0</dep.parquet.version>
         <dep.plugin.failsafe.version>${dep.plugin.surefire.version}</dep.plugin.failsafe.version>
@@ -228,7 +228,7 @@
         <dep.tcnative.version>2.0.69.Final</dep.tcnative.version>
         <dep.tempto.version>202</dep.tempto.version>
         <dep.wire.version>4.9.11</dep.wire.version>
-        <dep.zookeeper.version>3.8.4.3.3.6.1-1</dep.zookeeper.version>
+        <dep.zookeeper.version>3.8.4.3.3.6.3-1</dep.zookeeper.version>
         <extraJavaVectorArgs>--add-modules=jdk.incubator.vector</extraJavaVectorArgs>
         <!--
         Instructs Provisio to write runtime dependencies in the format groupId_artifactId-version.jar.
@@ -1626,7 +1626,7 @@
             <dependency>
                 <groupId>io.trino.hadoop</groupId>
                 <artifactId>hadoop-apache</artifactId>
-                <version>3.3.5-3</version>
+                <version>3.3.5-3.3.6.3-1</version>
             </dependency>
 
             <dependency>
