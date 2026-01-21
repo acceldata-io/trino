@@ -2517,6 +2517,14 @@
                         <groupId>com.fasterxml.jackson.core</groupId>
                         <artifactId>jackson-databind</artifactId>
                     </exclusion>
+                    <exclusion>
+                        <groupId>com.squareup.wire</groupId>
+                        <artifactId>wire-runtime-jvm</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.squareup.wire</groupId>
+                        <artifactId>wire-schema-jvm</artifactId>
+                    </exclusion>
                 </exclusions>
             </dependency>
 
