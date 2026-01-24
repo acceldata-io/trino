@@ -428,10 +428,45 @@ public final class ThriftHiveMetastore
                 })
                 .collect(toImmutableList());
         if (!metastoreColumnStatistics.isEmpty()) {
-            setTableColumnStatistics(databaseName, tableName, metastoreColumnStatistics);
+            // For transactional tables, use the API that supports writeId
+            if (isTransactionalTable(originalTable) && acidWriteId.isPresent()) {
+                Optional<String> validWriteIdList = getValidWriteIdList(databaseName, tableName, acidWriteId.getAsLong());
+                setTableColumnStatistics(databaseName, tableName, metastoreColumnStatistics, acidWriteId, validWriteIdList);
+            }
+            else {
+                setTableColumnStatistics(databaseName, tableName, metastoreColumnStatistics);
+            }
         }
         Set<String> removedColumnStatistics = difference(currentStatistics.columnStatistics().keySet(), updatedStatistics.columnStatistics().keySet());
-        removedColumnStatistics.forEach(column -> deleteTableColumnStatistics(databaseName, tableName, column));
+        // Hive 4.0+ does not allow deleting column statistics for transactional tables via the standard API
+        if (!isTransactionalTable(originalTable)) {
+            removedColumnStatistics.forEach(column -> deleteTableColumnStatistics(databaseName, tableName, column));
+        }
+    }
+
+    private static boolean isTransactionalTable(Table table)
+    {
+        Map<String, String> parameters = table.getParameters();
+        return parameters != null && "true".equalsIgnoreCase(parameters.get("transactional"));
+    }
+
+    private Optional<String> getValidWriteIdList(String databaseName, String tableName, long writeId)
+    {
+        try {
+            return Optional.of(retry()
+                    .stopOnIllegalExceptions()
+                    .run("getValidWriteIds", stats.getValidWriteIds().wrap(() -> {
+                        try (ThriftMetastoreClient metastoreClient = createMetastoreClient()) {
+                            return metastoreClient.getValidWriteIds(
+                                    ImmutableList.of(format("%s.%s", databaseName, tableName)),
+                                    writeId);
+                        }
+                    })));
+        }
+        catch (Exception e) {
+            // If we can't get valid write IDs, return empty and fall back to non-transactional API
+            return Optional.empty();
+        }
     }
 
     private PartitionStatistics getCurrentTableStatistics(Table table)
@@ -453,13 +488,23 @@ public final class ThriftHiveMetastore
 
     private void setTableColumnStatistics(String databaseName, String tableName, List<ColumnStatisticsObj> statistics)
     {
+        setTableColumnStatistics(databaseName, tableName, statistics, OptionalLong.empty(), Optional.empty());
+    }
+
+    private void setTableColumnStatistics(String databaseName, String tableName, List<ColumnStatisticsObj> statistics, OptionalLong writeId, Optional<String> validWriteIdList)
+    {
         try {
             retry()
                     .stopOn(NoSuchObjectException.class, InvalidObjectException.class, MetaException.class, InvalidInputException.class)
                     .stopOnIllegalExceptions()
                     .run("setTableColumnStatistics", stats.getSetTableColumnStatistics().wrap(() -> {
                         try (ThriftMetastoreClient client = createMetastoreClient()) {
-                            client.setTableColumnStatistics(databaseName, tableName, statistics);
+                            if (writeId.isPresent() && validWriteIdList.isPresent()) {
+                                client.setTableColumnStatistics(databaseName, tableName, statistics, writeId.getAsLong(), validWriteIdList.get());
+                            }
+                            else {
+                                client.setTableColumnStatistics(databaseName, tableName, statistics);
+                            }
                             return null;
                         }
                     }));
@@ -532,7 +577,10 @@ public final class ThriftHiveMetastore
         setPartitionColumnStatistics(table.getDbName(), table.getTableName(), partitionName, columns, updatedStatistics.columnStatistics());
 
         Set<String> removedStatistics = difference(currentColumnStats.keySet(), updatedStatistics.columnStatistics().keySet());
-        removedStatistics.forEach(column -> deletePartitionColumnStatistics(table.getDbName(), table.getTableName(), partitionName, column));
+        // Hive 4.0+ does not allow deleting column statistics for transactional tables via the standard API
+        if (!isTransactionalTable(table)) {
+            removedStatistics.forEach(column -> deletePartitionColumnStatistics(table.getDbName(), table.getTableName(), partitionName, column));
+        }
     }
 
     private void setPartitionColumnStatistics(
@@ -1205,6 +1253,12 @@ public final class ThriftHiveMetastore
         // In case new partition had the statistics computed for all the columns, the storePartitionColumnStatistics
         // call in the alterPartition will just overwrite the old statistics. There is no need to explicitly remove anything.
         if (columnsWithMissingStatistics.isEmpty()) {
+            return;
+        }
+
+        // Hive 4.0+ does not allow deleting column statistics for transactional tables via the standard API
+        Optional<Table> table = getTable(databaseName, tableName);
+        if (table.isPresent() && isTransactionalTable(table.get())) {
             return;
         }
 
