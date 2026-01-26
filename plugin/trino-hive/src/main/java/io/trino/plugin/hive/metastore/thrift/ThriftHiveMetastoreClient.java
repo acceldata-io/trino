@@ -262,7 +262,14 @@ public class ThriftHiveMetastoreClient
             CreateTableRequest request = new CreateTableRequest(tableToCreate);
             request.setProcessorCapabilities(ACID_PROCESSOR_CAPABILITIES);
             request.setProcessorIdentifier(ACID_PROCESSOR_IDENTIFIER);
-            client.createTableReq(request);
+            try {
+                client.createTableReq(request);
+            }
+            catch (TException e) {
+                // Fallback to legacy createTable if createTableReq is not supported by the metastore
+                log.debug(e, "createTableReq failed for table %s, falling back to createTable", table.getTableName());
+                client.createTable(tableToCreate);
+            }
         }
         else {
             client.createTable(tableToCreate);
