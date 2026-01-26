@@ -476,7 +476,7 @@ public final class ThriftHiveMetastore
     private Optional<String> getValidWriteIdList(String databaseName, String tableName, long writeId)
     {
         try {
-            return Optional.of(retry()
+            return Optional.ofNullable(retry()
                     .stopOnIllegalExceptions()
                     .run("getValidWriteIds", stats.getValidWriteIds().wrap(() -> {
                         try (ThriftMetastoreClient metastoreClient = createMetastoreClient()) {
@@ -487,7 +487,9 @@ public final class ThriftHiveMetastore
                     })));
         }
         catch (Exception e) {
-            // If we can't get valid write IDs, return empty and fall back to non-transactional API
+            // If we can't get valid write IDs, log and fall back to non-transactional API
+            log.debug(e, "Unable to get valid write IDs for %s.%s with writeId %d, falling back to non-transactional API",
+                    databaseName, tableName, writeId);
             return Optional.empty();
         }
     }

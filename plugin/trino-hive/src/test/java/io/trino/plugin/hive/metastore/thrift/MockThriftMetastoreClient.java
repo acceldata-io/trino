@@ -247,7 +247,8 @@ public class MockThriftMetastoreClient
     @Override
     public void setTableColumnStatistics(String databaseName, String tableName, List<ColumnStatisticsObj> statistics, long writeId, String validWriteIdList)
     {
-        throw new UnsupportedOperationException();
+        accessCount.incrementAndGet();
+        // No-op for mock
     }
 
     @Override
