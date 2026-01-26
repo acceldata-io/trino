@@ -312,9 +312,15 @@ public class ThriftHiveMetastoreClient
                 client.createTableReq(request);
             }
             catch (TException e) {
-                // Fallback to legacy createTable if createTableReq is not supported by the metastore
-                log.debug(e, "createTableReq failed for table %s, falling back to createTable", table.getTableName());
-                client.createTable(tableToCreate);
+                // Only fallback to legacy createTable if createTableReq method doesn't exist on older metastores
+                // For all other errors (including ACID-specific errors), propagate the exception
+                if (isUnknownMethodExceptionalResponse(e)) {
+                    log.debug(e, "createTableReq not supported by metastore for table %s, falling back to createTable", table.getTableName());
+                    client.createTable(tableToCreate);
+                }
+                else {
+                    throw e;
+                }
             }
         }
         else {
