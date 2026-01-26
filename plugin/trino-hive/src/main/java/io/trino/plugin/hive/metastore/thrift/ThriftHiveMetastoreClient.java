@@ -29,6 +29,7 @@ import io.trino.hive.thrift.metastore.ColumnStatistics;
 import io.trino.hive.thrift.metastore.ColumnStatisticsDesc;
 import io.trino.hive.thrift.metastore.ColumnStatisticsObj;
 import io.trino.hive.thrift.metastore.CommitTxnRequest;
+import io.trino.hive.thrift.metastore.CreateTableRequest;
 import io.trino.hive.thrift.metastore.DataOperationType;
 import io.trino.hive.thrift.metastore.Database;
 import io.trino.hive.thrift.metastore.EnvironmentContext;
@@ -55,6 +56,7 @@ import io.trino.hive.thrift.metastore.PrincipalType;
 import io.trino.hive.thrift.metastore.PrivilegeBag;
 import io.trino.hive.thrift.metastore.Role;
 import io.trino.hive.thrift.metastore.RolePrincipalGrant;
+import io.trino.hive.thrift.metastore.SetPartitionsStatsRequest;
 import io.trino.hive.thrift.metastore.Table;
 import io.trino.hive.thrift.metastore.TableMeta;
 import io.trino.hive.thrift.metastore.TableStatsRequest;
@@ -64,6 +66,7 @@ import io.trino.hive.thrift.metastore.TxnToWriteId;
 import io.trino.hive.thrift.metastore.UnlockRequest;
 import io.trino.plugin.base.util.LoggingInvocationHandler;
 import io.trino.plugin.hive.metastore.thrift.MetastoreSupportsDateStatistics.DateStatisticsSupport;
+import io.trino.plugin.hive.util.AcidTables;
 import io.trino.spi.connector.RelationType;
 import jakarta.annotation.Nullable;
 import org.apache.thrift.TApplicationException;
@@ -234,13 +237,55 @@ public class ThriftHiveMetastoreClient
         client.alterDatabase(prependCatalogToDbName(catalogName, databaseName), database);
     }
 
+    // Processor capabilities required for ACID table operations in Hive 3.x+
+    // These capabilities tell the Hive Metastore that the client can handle ACID tables
+    private static final List<String> ACID_PROCESSOR_CAPABILITIES = ImmutableList.of(
+            "HIVEFULLACIDREAD",
+            "HIVEFULLACIDWRITE",
+            "HIVEMANAGEDINSERTREAD",
+            "HIVEMANAGEDINSERTWRITE",
+            "HIVECACHEINVALIDATE",
+            "CONNECTORREAD",
+            "CONNECTORWRITE");
+
+    private static final String ACID_PROCESSOR_IDENTIFIER = "trino";
+
     @Override
     public void createTable(Table table)
             throws TException
     {
-        client.createTable(catalogName.isEmpty()
+        Table tableToCreate = catalogName.isEmpty()
                 ? table
-                : table.deepCopy().setCatName(catalogName.orElseThrow()));
+                : table.deepCopy().setCatName(catalogName.orElseThrow());
+
+        // Use createTableReq API with processor capabilities for ACID tables
+        if (isTransactionalTable(tableToCreate)) {
+            CreateTableRequest request = new CreateTableRequest(tableToCreate);
+            request.setProcessorCapabilities(ACID_PROCESSOR_CAPABILITIES);
+            request.setProcessorIdentifier(ACID_PROCESSOR_IDENTIFIER);
+            try {
+                client.createTableReq(request);
+            }
+            catch (TException e) {
+                // Only fallback to legacy createTable if createTableReq method doesn't exist on older metastores
+                // For all other errors (including ACID-specific errors), propagate the exception
+                if (isUnknownMethodExceptionalResponse(e)) {
+                    log.debug(e, "createTableReq not supported by metastore for table %s, falling back to createTable", table.getTableName());
+                    client.createTable(tableToCreate);
+                }
+                else {
+                    throw e;
+                }
+            }
+        }
+        else {
+            client.createTable(tableToCreate);
+        }
+    }
+
+    private static boolean isTransactionalTable(Table table)
+    {
+        return table.getParameters() != null && AcidTables.isTransactionalTable(table.getParameters());
     }
 
     @Override
@@ -304,6 +349,25 @@ public class ThriftHiveMetastoreClient
     }
 
     @Override
+    public void setTableColumnStatistics(String databaseName, String tableName, List<ColumnStatisticsObj> statistics, long writeId, String validWriteIdList)
+            throws TException
+    {
+        setColumnStatistics(
+                format("table %s.%s", databaseName, tableName),
+                statistics,
+                stats -> {
+                    ColumnStatisticsDesc statisticsDescription = new ColumnStatisticsDesc(true, databaseName, tableName);
+                    catalogName.ifPresent(statisticsDescription::setCatName);
+                    ColumnStatistics colStats = new ColumnStatistics(statisticsDescription, stats);
+                    SetPartitionsStatsRequest request = new SetPartitionsStatsRequest(ImmutableList.of(colStats));
+                    request.setWriteId(writeId);
+                    request.setValidWriteIdList(validWriteIdList);
+                    request.setEngine(engine);
+                    client.updateTableColumnStatisticsReq(request);
+                });
+    }
+
+    @Override
     public void deleteTableColumnStatistics(String databaseName, String tableName, String columnName)
             throws TException
     {
@@ -332,6 +396,26 @@ public class ThriftHiveMetastoreClient
                     statisticsDescription.setPartName(partitionName);
                     ColumnStatistics request = new ColumnStatistics(statisticsDescription, stats);
                     client.updatePartitionColumnStatistics(request);
+                });
+    }
+
+    @Override
+    public void setPartitionColumnStatistics(String databaseName, String tableName, String partitionName, List<ColumnStatisticsObj> statistics, long writeId, String validWriteIdList)
+            throws TException
+    {
+        setColumnStatistics(
+                format("partition of table %s.%s", databaseName, tableName),
+                statistics,
+                stats -> {
+                    ColumnStatisticsDesc statisticsDescription = new ColumnStatisticsDesc(false, databaseName, tableName);
+                    catalogName.ifPresent(statisticsDescription::setCatName);
+                    statisticsDescription.setPartName(partitionName);
+                    ColumnStatistics colStats = new ColumnStatistics(statisticsDescription, stats);
+                    SetPartitionsStatsRequest request = new SetPartitionsStatsRequest(ImmutableList.of(colStats));
+                    request.setWriteId(writeId);
+                    request.setValidWriteIdList(validWriteIdList);
+                    request.setEngine(engine);
+                    client.updatePartitionColumnStatisticsReq(request);
                 });
     }
 
