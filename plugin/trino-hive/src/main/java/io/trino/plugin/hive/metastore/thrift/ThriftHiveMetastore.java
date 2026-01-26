@@ -73,6 +73,7 @@ import io.trino.metastore.StatisticsUpdateMode;
 import io.trino.plugin.hive.PartitionNotFoundException;
 import io.trino.plugin.hive.SchemaAlreadyExistsException;
 import io.trino.plugin.hive.TableAlreadyExistsException;
+import io.trino.plugin.hive.util.AcidTables;
 import io.trino.plugin.hive.util.RetryDriver;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.SchemaNotFoundException;
@@ -447,7 +448,7 @@ public final class ThriftHiveMetastore
     private static boolean isTransactionalTable(Table table)
     {
         Map<String, String> parameters = table.getParameters();
-        return parameters != null && "true".equalsIgnoreCase(parameters.get("transactional"));
+        return parameters != null && AcidTables.isTransactionalTable(parameters);
     }
 
     private Optional<String> getValidWriteIdList(String databaseName, String tableName, long writeId)

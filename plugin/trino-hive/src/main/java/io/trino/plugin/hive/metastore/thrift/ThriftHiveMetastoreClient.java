@@ -66,6 +66,7 @@ import io.trino.hive.thrift.metastore.TxnToWriteId;
 import io.trino.hive.thrift.metastore.UnlockRequest;
 import io.trino.plugin.base.util.LoggingInvocationHandler;
 import io.trino.plugin.hive.metastore.thrift.MetastoreSupportsDateStatistics.DateStatisticsSupport;
+import io.trino.plugin.hive.util.AcidTables;
 import io.trino.spi.connector.RelationType;
 import jakarta.annotation.Nullable;
 import org.apache.thrift.TApplicationException;
@@ -278,8 +279,7 @@ public class ThriftHiveMetastoreClient
 
     private static boolean isTransactionalTable(Table table)
     {
-        return table.getParameters() != null &&
-                "true".equalsIgnoreCase(table.getParameters().get("transactional"));
+        return table.getParameters() != null && AcidTables.isTransactionalTable(table.getParameters());
     }
 
     @Override
