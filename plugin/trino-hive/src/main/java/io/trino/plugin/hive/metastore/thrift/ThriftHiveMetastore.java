@@ -74,7 +74,6 @@ import io.trino.metastore.StatisticsUpdateMode;
 import io.trino.metastore.TableAlreadyExistsException;
 import io.trino.plugin.hive.PartitionNotFoundException;
 import io.trino.plugin.hive.util.AcidTables;
-import io.trino.plugin.hive.util.RetryDriver;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.SchemaNotFoundException;
 import io.trino.spi.connector.SchemaTableName;
