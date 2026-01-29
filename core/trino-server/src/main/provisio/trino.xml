@@ -201,11 +201,11 @@
         </artifact>
     </artifactSet>
 
-    <artifactSet to="plugin/kudu">
+    <!--<artifactSet to="plugin/kudu">
         <artifact id="${project.groupId}:trino-kudu:zip:${project.version}">
             <unpack />
         </artifact>
-    </artifactSet>
+    </artifactSet>-->
 
     <artifactSet to="plugin/mariadb">
         <artifact id="${project.groupId}:trino-mariadb:zip:${project.version}">
