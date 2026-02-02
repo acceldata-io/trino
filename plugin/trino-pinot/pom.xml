@@ -22,21 +22,181 @@
 
     <dependencyManagement>
         <dependencies>
+
+            <!-- jackson-annotations: 2.19.0 vs 2.19.1 -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-annotations</artifactId>
+                <version>2.19.1</version>
+            </dependency>
+
+            <!-- jackson-core: 2.19.0 vs 2.19.1 -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>2.19.1</version>
+            </dependency>
+
+            <!-- jackson-databind: 2.19.0 vs 2.19.1 -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>2.19.1</version>
+            </dependency>
+
+            <!-- zstd-jni: 1.5.7-1 vs 1.5.7-4 -->
+            <dependency>
+                <groupId>com.github.luben</groupId>
+                <artifactId>zstd-jni</artifactId>
+                <version>1.5.7-4</version>
+            </dependency>
+            <!-- Pin versions to resolve RequireUpperBoundDeps conflicts -->
+
+            <!-- protobuf-java: 3.25.5/3.25.6 vs 3.25.8 -->
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>3.25.8</version>
+            </dependency>
+
+            <!-- commons-io: 2.18.0 vs 2.19.0 -->
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>2.19.0</version>
+            </dependency>
+
+            <!-- grpc-api: 1.70.0 vs 1.73.0 -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-api</artifactId>
+                <version>1.73.0</version>
+            </dependency>
+
+            <!-- grpc-context: 1.70.0 vs 1.73.0 (transitive from grpc-core) -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-context</artifactId>
+                <version>1.73.0</version>
+            </dependency>
+
+            <!-- grpc-core: 1.70.0 vs 1.73.0 -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-core</artifactId>
+                <version>1.73.0</version>
+            </dependency>
+
+            <!-- grpc-netty-shaded: 1.70.0 vs 1.73.0 -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-netty-shaded</artifactId>
+                <version>1.73.0</version>
+            </dependency>
+
+            <!-- grpc-protobuf: 1.70.0 vs 1.73.0 -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-protobuf</artifactId>
+                <version>1.73.0</version>
+            </dependency>
+
+            <!-- grpc-protobuf-lite: 1.70.0 vs 1.73.0 -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-protobuf-lite</artifactId>
+                <version>1.73.0</version>
+            </dependency>
+
+            <!-- grpc-stub: 1.70.0 vs 1.73.0 -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-stub</artifactId>
+                <version>1.73.0</version>
+            </dependency>
+
+            <!-- grpc-util: 1.70.0 vs 1.73.0 -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-util</artifactId>
+                <version>1.73.0</version>
+            </dependency>
+
+            <!-- fastutil: 8.5.15 vs 8.5.16 -->
+            <dependency>
+                <groupId>it.unimi.dsi</groupId>
+                <artifactId>fastutil</artifactId>
+                <version>8.5.16</version>
+            </dependency>
+
+            <!-- joda-time: 2.13.1 vs 2.14.0 -->
+            <dependency>
+                <groupId>joda-time</groupId>
+                <artifactId>joda-time</artifactId>
+                <version>2.14.0</version>
+            </dependency>
+
+            <!-- chronicle-core: 2.27ea2 vs 2.27ea6 -->
             <dependency>
                 <groupId>net.openhft</groupId>
                 <artifactId>chronicle-core</artifactId>
-                <version>2.27ea2</version>
+                <version>2.27ea6</version>
             </dependency>
+
+            <!-- posix: 2.27ea0/2.27ea1 vs 2.27ea2 -->
             <dependency>
                 <groupId>net.openhft</groupId>
                 <artifactId>posix</artifactId>
-                <version>2.27ea1</version>
+                <version>2.27ea2</version>
             </dependency>
 
+            <!-- arrow-format: 18.2.0 vs 18.3.0 -->
+            <dependency>
+                <groupId>org.apache.arrow</groupId>
+                <artifactId>arrow-format</artifactId>
+                <version>18.3.0</version>
+            </dependency>
+
+            <!-- arrow-memory-core: 18.2.0 vs 18.3.0 -->
+            <dependency>
+                <groupId>org.apache.arrow</groupId>
+                <artifactId>arrow-memory-core</artifactId>
+                <version>18.3.0</version>
+            </dependency>
+
+            <!-- arrow-memory-netty: 18.2.0 vs 18.3.0 -->
+            <dependency>
+                <groupId>org.apache.arrow</groupId>
+                <artifactId>arrow-memory-netty</artifactId>
+                <version>18.3.0</version>
+            </dependency>
+
+            <!-- arrow-vector: 18.2.0 vs 18.3.0 -->
+            <dependency>
+                <groupId>org.apache.arrow</groupId>
+                <artifactId>arrow-vector</artifactId>
+                <version>18.3.0</version>
+            </dependency>
+
+            <!-- commons-lang3: 3.17.0 vs 3.18.0 -->
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>3.18.0</version>
+            </dependency>
+
+            <!-- commons-text: 1.13.0 vs 1.13.1 -->
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-text</artifactId>
-                <version>1.13.0</version>
+                <version>1.13.1</version>
+            </dependency>
+
+            <!-- helix-core: 1.3.1 vs 1.3.2 -->
+            <dependency>
+                <groupId>org.apache.helix</groupId>
+                <artifactId>helix-core</artifactId>
+                <version>1.3.2</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -135,7 +295,7 @@
         <dependency>
             <groupId>org.apache.helix</groupId>
             <artifactId>helix-core</artifactId>
-            <version>1.3.1</version>
+            <version>1.3.2</version>
             <exclusions>
                 <exclusion>
                     <groupId>javax.annotation</groupId>
