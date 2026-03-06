@@ -29,7 +29,6 @@ import io.airlift.discovery.client.DiscoveryModule;
 import io.airlift.discovery.client.ServiceAnnouncement;
 import io.airlift.http.server.HttpServerModule;
 import io.airlift.jaxrs.JaxrsModule;
-import io.airlift.jmx.JmxHttpModule;
 import io.airlift.jmx.JmxModule;
 import io.airlift.json.JsonModule;
 import io.airlift.log.LogJmxModule;
@@ -112,7 +111,6 @@ public class Server
                 new MBeanModule(),
                 new PrefixObjectNameGeneratorModule("io.trino"),
                 new JmxModule(),
-                new JmxHttpModule(),
                 new JmxOpenMetricsModule(),
                 new LogJmxModule(),
                 new TracingModule("trino", trinoVersion),
