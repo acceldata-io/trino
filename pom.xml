@@ -212,6 +212,7 @@
         <dep.google.http.client.version>1.46.3</dep.google.http.client.version>
         <dep.httpcore5.version>5.3.4</dep.httpcore5.version>
         <dep.iceberg.version>1.8.1</dep.iceberg.version>
+        <dep.jetty.version>12.0.25</dep.jetty.version>
         <dep.jna.version>5.16.0</dep.jna.version>
         <dep.joda.version>2.13.1</dep.joda.version>
         <dep.jsonwebtoken.version>0.12.6</dep.jsonwebtoken.version>
@@ -291,6 +292,23 @@
                 <groupId>org.apache.arrow</groupId>
                 <artifactId>arrow-bom</artifactId>
                 <version>18.2.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Override Airlift Jetty 12.0.22 with 12.0.25+ (CVE-2025-5115); import follows Airlift BOM -->
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-bom</artifactId>
+                <version>${dep.jetty.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.eclipse.jetty.ee10</groupId>
+                <artifactId>jetty-ee10-bom</artifactId>
+                <version>${dep.jetty.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
