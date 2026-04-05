@@ -10,7 +10,6 @@
     </parent>
 
     <artifactId>trino-ranger</artifactId>
-
     <packaging>trino-plugin</packaging>
     <description>Trino - Apache Ranger access control</description>
 
