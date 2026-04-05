@@ -98,7 +98,6 @@
             <artifactId>jakarta.annotation-api</artifactId>
         </dependency>
 
-
         <dependency>
             <groupId>jakarta.validation</groupId>
             <artifactId>jakarta.validation-api</artifactId>

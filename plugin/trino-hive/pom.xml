@@ -209,7 +209,6 @@
             <artifactId>parquet-column</artifactId>
         </dependency>
 
-
         <dependency>
             <groupId>org.apache.parquet</groupId>
             <artifactId>parquet-format-structures</artifactId>
@@ -276,7 +275,6 @@
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>retries</artifactId>
         </dependency>
-
 
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
