@@ -209,6 +209,7 @@
             <artifactId>parquet-column</artifactId>
         </dependency>
 
+
         <dependency>
             <groupId>org.apache.parquet</groupId>
             <artifactId>parquet-format-structures</artifactId>
@@ -275,6 +276,7 @@
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>retries</artifactId>
         </dependency>
+
 
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
@@ -630,6 +632,9 @@
                              we use it as part of builder, without explicit import in GlueMetastoreModule -->
                         <ignoredNonTestScopedDependency>software.amazon.awssdk:retries</ignoredNonTestScopedDependency>
                     </ignoredNonTestScopedDependencies>
+                    <ignoredUnusedDeclaredDependencies>
+                        <ignoredDependency>software.amazon.awssdk:retries</ignoredDependency>
+                    </ignoredUnusedDeclaredDependencies>
                 </configuration>
             </plugin>
         </plugins>

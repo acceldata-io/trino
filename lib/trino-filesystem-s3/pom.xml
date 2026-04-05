@@ -208,6 +208,7 @@
             <scope>test</scope>
         </dependency>
 
+
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>junit-extensions</artifactId>
@@ -294,6 +295,9 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <configuration>
+                    <ignoredUnusedDeclaredDependencies>
+                        <ignoredDependency>software.amazon.awssdk:identity-spi</ignoredDependency>
+                    </ignoredUnusedDeclaredDependencies>
                     <ignoredNonTestScopedDependencies>
                         <ignoredDependency>software.amazon.awssdk:identity-spi</ignoredDependency>
                     </ignoredNonTestScopedDependencies>

@@ -98,6 +98,7 @@
             <artifactId>jakarta.annotation-api</artifactId>
         </dependency>
 
+
         <dependency>
             <groupId>jakarta.validation</groupId>
             <artifactId>jakarta.validation-api</artifactId>
@@ -418,6 +419,9 @@
                             <!-- elasticsearch-x-content is required in compile scope by org.elasticsearch:elasticsearch -->
                             <ignoredNonTestScopedDependency>org.elasticsearch:elasticsearch-x-content</ignoredNonTestScopedDependency>
                         </ignoredNonTestScopedDependencies>
+                        <ignoredUnusedDeclaredDependencies>
+                            <ignoredDependency>org.elasticsearch:elasticsearch-x-content</ignoredDependency>
+                        </ignoredUnusedDeclaredDependencies>
                     </configuration>
                 </plugin>
             </plugins>
