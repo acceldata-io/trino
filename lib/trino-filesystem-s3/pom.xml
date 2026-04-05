@@ -208,7 +208,6 @@
             <scope>test</scope>
         </dependency>
 
-
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>junit-extensions</artifactId>
