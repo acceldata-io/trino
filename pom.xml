@@ -2814,6 +2814,29 @@
                                     <resource>okio/-InflaterSourceExtensions.class</resource>
                                 </resources>
                             </exception>
+                            <!-- hadoop-apache embeds BouncyCastle from Hadoop stack; tests also depend on bcprov-jdk18on -->
+                            <exception>
+                                <conflictingDependencies>
+                                    <dependency>
+                                        <groupId>io.trino.hadoop</groupId>
+                                        <artifactId>hadoop-apache</artifactId>
+                                    </dependency>
+                                    <dependency>
+                                        <groupId>org.bouncycastle</groupId>
+                                        <artifactId>bcprov-jdk18on</artifactId>
+                                    </dependency>
+                                </conflictingDependencies>
+                                <packages>
+                                    <package>org.bouncycastle</package>
+                                </packages>
+                                <resources>
+                                    <resource>org/bouncycastle/pqc/crypto/picnic/lowmcL1.bin.properties</resource>
+                                    <resource>org/bouncycastle/pqc/crypto/picnic/lowmcL3.bin.properties</resource>
+                                    <resource>org/bouncycastle/pqc/crypto/picnic/lowmcL5.bin.properties</resource>
+                                    <resource>org/bouncycastle/x509/CertPathReviewerMessages.properties</resource>
+                                    <resource>org/bouncycastle/x509/CertPathReviewerMessages_de.properties</resource>
+                                </resources>
+                            </exception>
                         </exceptions>
                     </configuration>
                 </plugin>
