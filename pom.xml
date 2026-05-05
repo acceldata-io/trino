@@ -2774,6 +2774,46 @@
                                     </dependency>
                                 </conflictingDependencies>
                             </exception>
+                            <!-- hadoop-apache shades Hadoop but still embeds kotlin/okio used by okhttp; test scope pulls standalone jars -->
+                            <exception>
+                                <conflictingDependencies>
+                                    <dependency>
+                                        <groupId>io.trino.hadoop</groupId>
+                                        <artifactId>hadoop-apache</artifactId>
+                                    </dependency>
+                                    <dependency>
+                                        <groupId>org.jetbrains.kotlin</groupId>
+                                        <artifactId>kotlin-stdlib</artifactId>
+                                    </dependency>
+                                </conflictingDependencies>
+                                <packages>
+                                    <package>kotlin</package>
+                                </packages>
+                            </exception>
+                            <exception>
+                                <conflictingDependencies>
+                                    <dependency>
+                                        <groupId>io.trino.hadoop</groupId>
+                                        <artifactId>hadoop-apache</artifactId>
+                                    </dependency>
+                                    <dependency>
+                                        <groupId>com.squareup.okio</groupId>
+                                        <artifactId>okio-jvm</artifactId>
+                                    </dependency>
+                                </conflictingDependencies>
+                                <packages>
+                                    <package>okio</package>
+                                </packages>
+                                <resources>
+                                    <resource>okio/-DeflaterSinkExtensions.class</resource>
+                                    <resource>okio/-DeprecatedOkio.class</resource>
+                                    <resource>okio/-DeprecatedUpgrade.class</resource>
+                                    <resource>okio/-DeprecatedUtf8.class</resource>
+                                    <resource>okio/-GzipSinkExtensions.class</resource>
+                                    <resource>okio/-GzipSourceExtensions.class</resource>
+                                    <resource>okio/-InflaterSourceExtensions.class</resource>
+                                </resources>
+                            </exception>
                         </exceptions>
                     </configuration>
                 </plugin>
