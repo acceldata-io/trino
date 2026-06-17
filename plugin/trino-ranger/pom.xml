@@ -16,7 +16,7 @@
 
     <properties>
         <dep.graalvm.version>24.1.2</dep.graalvm.version>
-        <dep.ranger.version>2.5.0.3.3.6.5-SNAPSHOT</dep.ranger.version>
+        <dep.ranger.version>2.5.0.${odp.release.version}</dep.ranger.version>
         <jetty-client.version>9.4.56.v20240826</jetty-client.version>
     </properties>
 
