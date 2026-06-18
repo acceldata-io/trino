@@ -10,7 +10,7 @@
 
     <groupId>io.trino</groupId>
     <artifactId>trino-root</artifactId>
-    <version>481</version>
+    <version>481.3.4.3.0-1</version>
     <packaging>pom</packaging>
 
     <name>${project.artifactId}</name>
@@ -211,7 +211,7 @@
         <dep.takari.version>2.3.3</dep.takari.version>
         <dep.tcnative.version>2.0.77.Final</dep.tcnative.version>
         <dep.tempto.version>202</dep.tempto.version>
-        <dep.zookeeper.version>3.9.5</dep.zookeeper.version>
+        <dep.zookeeper.version>3.8.6.3.4.3.0-1</dep.zookeeper.version>
         <extraJavaVectorArgs>--add-modules=jdk.incubator.vector</extraJavaVectorArgs>
         <!--
         Instructs Provisio to write runtime dependencies in the format groupId_artifactId-version.jar.
@@ -1539,7 +1539,7 @@
             <dependency>
                 <groupId>io.trino.hadoop</groupId>
                 <artifactId>hadoop-apache</artifactId>
-                <version>3.3.5-3</version>
+                <version>3.3.5-3.3.4.3.0-1</version>
                 <exclusions>
                     <exclusion>
                         <groupId>org.lz4</groupId>
@@ -1551,7 +1551,7 @@
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-apache</artifactId>
-                <version>3.1.2-23</version>
+                <version>3.1.2-24-3.4.3.0-1</version>
                 <exclusions>
                     <exclusion>
                         <groupId>javax.annotation</groupId>
@@ -1571,13 +1571,13 @@
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-apache-jdbc</artifactId>
-                <version>0.13.1-10</version>
+                <version>0.13.1-10-3.4.3.0-1</version>
             </dependency>
 
             <dependency>
                 <groupId>io.trino.hive</groupId>
                 <artifactId>hive-thrift</artifactId>
-                <version>3</version>
+                <version>3.1.4.3.4.3.0-1</version>
             </dependency>
 
             <dependency>
