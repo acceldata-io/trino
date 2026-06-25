@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.trino</groupId>
         <artifactId>trino-root</artifactId>
-        <version>472.3.2.3.7-2</version>
+        <version>472.${odp.release.version}</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -13,6 +13,7 @@
     <description>Trino - Product tests launcher</description>
 
     <properties>
+    <odp.release.version>3.2.3.7-2</odp.release.version>
         <main-class>io.trino.tests.product.launcher.cli.Launcher</main-class>
     </properties>
 
@@ -256,7 +257,7 @@
                                     <groupId>org.apache.hive</groupId>
                                     <artifactId>hive-jdbc</artifactId>
                                     <classifier>standalone</classifier>
-                                    <version>3.1.4.3.2.3.7-2</version>
+                                    <version>3.1.4.${odp.release.version}</version>
                                     <type>jar</type>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                     <destFileName>hive-jdbc.jar</destFileName>
