@@ -159,7 +159,7 @@
     </distributionManagement>
 
     <properties>
-    <odp.release.version>3.2.3.7-2</odp.release.version>
+        <odp.release.version>3.2.3.7-2</odp.release.version>
         <project.build.targetJdk>23</project.build.targetJdk>
         <!-- for reproducible build support, updated by release plugin -->
         <project.build.outputTimestamp>2025-05-01T15:32:21Z</project.build.outputTimestamp>
