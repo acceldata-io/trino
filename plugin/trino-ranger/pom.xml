@@ -15,7 +15,7 @@
     <description>Trino - Apache Ranger access control</description>
 
     <properties>
-    <odp.release.version>3.2.3.7-2</odp.release.version>
+        <odp.release.version>3.2.3.7-2</odp.release.version>
         <dep.graalvm.version>24.1.2</dep.graalvm.version>
         <dep.ranger.version>2.5.0.${odp.release.version}</dep.ranger.version>
     </properties>

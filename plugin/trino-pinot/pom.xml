@@ -13,7 +13,7 @@
     <description>Trino - Pinot connector</description>
 
     <properties>
-    <odp.release.version>3.2.3.7-2</odp.release.version>
+        <odp.release.version>3.2.3.7-2</odp.release.version>
         <dep.pinot.version>1.3.0.${odp.release.version}</dep.pinot.version>
         <air.compiler.fail-warnings>true</air.compiler.fail-warnings>
         <!-- additional JVM flags required by chronicle-hft which is used by pinot-segment spi -->
