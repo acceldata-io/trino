@@ -565,6 +565,7 @@
                                 <exclude>io.grpc:grpc-netty-shaded</exclude>
                                 <exclude>io.grpc:grpc-protobuf</exclude>
                                 <exclude>io.grpc:grpc-stub</exclude>
+                                <exclude>org.apache.zookeeper:zookeeper</exclude>
                             </excludes>
                         </requireUpperBoundDeps>
                     </rules>
