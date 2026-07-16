@@ -39,12 +39,12 @@ public class TestLoggingInvocationHandlerWithHiveMetastore
         ThriftHiveMetastore.Iface proxy = newProxy(
                 ThriftHiveMetastore.Iface.class,
                 new LoggingInvocationHandler(dummyThriftHiveMetastoreClient(), messages::add));
-        proxy.getTable("some_database", "some_table_name");
+        proxy.getTables("some_database", "some_table_name");
         assertThat(messages)
                 .hasSize(1)
                 .element(0)
                 .asInstanceOf(InstanceOfAssertFactories.STRING)
-                .matches("\\QInvocation of getTable(dbname='some_database', tbl_name='some_table_name') succeeded in\\E " + DURATION_PATTERN);
+                .matches("\\QInvocation of getTable(db_name='some_database', pattern='some_table_name') succeeded in\\E " + DURATION_PATTERN);
     }
 
     private static ThriftHiveMetastore.Iface dummyThriftHiveMetastoreClient()

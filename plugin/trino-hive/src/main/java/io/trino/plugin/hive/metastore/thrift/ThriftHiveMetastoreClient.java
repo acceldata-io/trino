@@ -284,16 +284,10 @@ public class ThriftHiveMetastoreClient
     public Table getTable(String databaseName, String tableName)
             throws TException
     {
-        return alternativeCall(
-                ThriftHiveMetastoreClient::defaultIsValidExceptionalResponse,
-                chosenGetTableAlternative,
-                () -> {
-                    GetTableRequest request = new GetTableRequest(databaseName, tableName);
-                    catalogName.ifPresent(request::setCatName);
-                    request.setCapabilities(new ClientCapabilities(ImmutableList.of(ClientCapability.INSERT_ONLY_TABLES)));
-                    return client.getTableReq(request).getTable();
-                },
-                () -> client.getTable(prependCatalogToDbName(catalogName, databaseName), tableName));
+        GetTableRequest request = new GetTableRequest(databaseName, tableName);
+        catalogName.ifPresent(request::setCatName);
+        request.setCapabilities(new ClientCapabilities(ImmutableList.of(ClientCapability.INSERT_ONLY_TABLES)));
+        return client.getTableReq(request).getTable();
     }
 
     @Override
@@ -331,7 +325,7 @@ public class ThriftHiveMetastoreClient
     public void deleteTableColumnStatistics(String databaseName, String tableName, String columnName)
             throws TException
     {
-        client.deleteTableColumnStatistics(prependCatalogToDbName(catalogName, databaseName), tableName, columnName);
+        client.deleteTableColumnStatistics(prependCatalogToDbName(catalogName, databaseName), tableName, columnName, "hive");
     }
 
     @Override
@@ -363,7 +357,7 @@ public class ThriftHiveMetastoreClient
     public void deletePartitionColumnStatistics(String databaseName, String tableName, String partitionName, String columnName)
             throws TException
     {
-        client.deletePartitionColumnStatistics(prependCatalogToDbName(catalogName, databaseName), tableName, partitionName, columnName);
+        client.deletePartitionColumnStatistics(prependCatalogToDbName(catalogName, databaseName), tableName, partitionName, columnName, "hive");
     }
 
     private void setColumnStatistics(String objectName, List<ColumnStatisticsObj> statistics, UnaryCall<List<ColumnStatisticsObj>> saveColumnStatistics)
@@ -675,7 +669,8 @@ public class ThriftHiveMetastoreClient
         // Do not pass currentTransactionId instead as it will break Hive's listing of delta directories if major compaction
         // deletes delta directories for valid transactions that existed at the time transaction is opened
         String validTransactions = createValidReadTxnList(client.getOpenTxns(), 0L);
-        GetValidWriteIdsRequest request = new GetValidWriteIdsRequest(tableList, validTransactions);
+        GetValidWriteIdsRequest request = new GetValidWriteIdsRequest(tableList);
+        request.setValidTxnList(validTransactions);
         List<TableValidWriteIds> validWriteIds = client.getValidWriteIds(request).getTblValidWriteIds();
         return createValidTxnWriteIdList(currentTransactionId, validWriteIds);
     }
