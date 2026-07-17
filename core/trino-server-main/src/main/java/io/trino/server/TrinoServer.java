@@ -16,6 +16,7 @@ package io.trino.server;
 import com.google.common.io.Resources;
 
 import java.io.InputStream;
+import java.util.Optional;
 import java.util.Properties;
 
 import static java.util.Objects.requireNonNullElse;
@@ -33,7 +34,9 @@ public final class TrinoServer
             System.exit(100);
         }
 
-        String trinoVersion = TrinoServer.class.getPackage().getImplementationVersion();
+        String trinoVersion = Optional
+                .ofNullable(System.getProperty("overrideVersion"))
+                .orElse(TrinoServer.class.getPackage().getImplementationVersion());
         new Server().start(requireNonNullElse(trinoVersion, "unknown"));
     }
 
