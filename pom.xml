@@ -236,6 +236,7 @@
         Since 1.1.0, the default behaviour for such conflicts changed from overwriting the artifact to failing the build.
         -->
         <provisio.fallbackTargetFileNameMode>GA</provisio.fallbackTargetFileNameMode>
+            <dep.jackson.version>2.21.1</dep.jackson.version>
     </properties>
 
     <dependencyManagement>
