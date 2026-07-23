@@ -299,14 +299,14 @@
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-bom</artifactId>
-                <version>12.0.25</version>
+                <version>12.0.34</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>org.eclipse.jetty.ee10</groupId>
                 <artifactId>jetty-ee10-bom</artifactId>
-                <version>12.0.25</version>
+                <version>12.0.34</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
