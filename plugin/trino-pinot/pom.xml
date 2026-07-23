@@ -70,56 +70,56 @@
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-api</artifactId>
-                <version>1.73.0</version>
+                <version>1.75.0</version>
             </dependency>
 
             <!-- grpc-context: 1.70.0 vs 1.73.0 (transitive from grpc-core) -->
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-context</artifactId>
-                <version>1.73.0</version>
+                <version>1.75.0</version>
             </dependency>
 
             <!-- grpc-core: 1.70.0 vs 1.73.0 -->
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-core</artifactId>
-                <version>1.73.0</version>
+                <version>1.75.0</version>
             </dependency>
 
             <!-- grpc-netty-shaded: 1.70.0 vs 1.73.0 -->
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-netty-shaded</artifactId>
-                <version>1.73.0</version>
+                <version>1.75.0</version>
             </dependency>
 
             <!-- grpc-protobuf: 1.70.0 vs 1.73.0 -->
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-protobuf</artifactId>
-                <version>1.73.0</version>
+                <version>1.75.0</version>
             </dependency>
 
             <!-- grpc-protobuf-lite: 1.70.0 vs 1.73.0 -->
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-protobuf-lite</artifactId>
-                <version>1.73.0</version>
+                <version>1.75.0</version>
             </dependency>
 
             <!-- grpc-stub: 1.70.0 vs 1.73.0 -->
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-stub</artifactId>
-                <version>1.73.0</version>
+                <version>1.75.0</version>
             </dependency>
 
             <!-- grpc-util: 1.70.0 vs 1.73.0 -->
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-util</artifactId>
-                <version>1.73.0</version>
+                <version>1.75.0</version>
             </dependency>
 
             <!-- fastutil: 8.5.15 vs 8.5.16 -->

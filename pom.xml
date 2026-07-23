@@ -2437,6 +2437,11 @@
                 <!-- This is under Confluent Community License and it should not be used with compile scope -->
                 <scope>test</scope>
             </dependency>
+        <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-netty-shaded</artifactId>
+                <version>1.75.0</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
