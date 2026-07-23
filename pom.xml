@@ -241,6 +241,8 @@
         <dep.opentelemetry-alpha.version>1.62.0-alpha</dep.opentelemetry-alpha.version>
         <dep.opentelemetry-instrumentation.version>2.17.1</dep.opentelemetry-instrumentation.version>
         <dep.opentelemetry-instrumentation-alpha.version>2.17.1-alpha</dep.opentelemetry-instrumentation-alpha.version>
+    <dep.logback.version>1.5.25</dep.logback.version>
+
   </properties>
 
     <dependencyManagement>
