@@ -87,6 +87,9 @@ public interface ThriftMetastoreClient
     void setTableColumnStatistics(String databaseName, String tableName, List<ColumnStatisticsObj> statistics)
             throws TException;
 
+    void setTableColumnStatistics(String databaseName, String tableName, List<ColumnStatisticsObj> statistics, long writeId, String validWriteIdList)
+            throws TException;
+
     void deleteTableColumnStatistics(String databaseName, String tableName, String columnName)
             throws TException;
 
@@ -94,6 +97,9 @@ public interface ThriftMetastoreClient
             throws TException;
 
     void setPartitionColumnStatistics(String databaseName, String tableName, String partitionName, List<ColumnStatisticsObj> statistics)
+            throws TException;
+
+    void setPartitionColumnStatistics(String databaseName, String tableName, String partitionName, List<ColumnStatisticsObj> statistics, long writeId, String validWriteIdList)
             throws TException;
 
     void deletePartitionColumnStatistics(String databaseName, String tableName, String partitionName, String columnName)
