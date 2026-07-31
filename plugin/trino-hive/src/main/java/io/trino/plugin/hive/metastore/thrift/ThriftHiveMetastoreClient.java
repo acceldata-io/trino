@@ -127,6 +127,7 @@ public class ThriftHiveMetastoreClient
     private final MetastoreSupportsDateStatistics metastoreSupportsDateStatistics;
     private final boolean metastoreSupportsTableMeta;
     private final AtomicInteger chosenGetTableAlternative;
+    private final AtomicInteger chosenGetTableMetaAlternative;
     private final AtomicInteger chosenTableParamAlternative;
     private final AtomicInteger chosenAlterTransactionalTableAlternative;
     private final AtomicInteger chosenAlterPartitionsAlternative;
@@ -140,6 +141,7 @@ public class ThriftHiveMetastoreClient
             MetastoreSupportsDateStatistics metastoreSupportsDateStatistics,
             boolean metastoreSupportsTableMeta,
             AtomicInteger chosenGetTableAlternative,
+            AtomicInteger chosenGetTableMetaAlternative,
             AtomicInteger chosenTableParamAlternative,
             AtomicInteger chosenAlterTransactionalTableAlternative,
             AtomicInteger chosenAlterPartitionsAlternative)
@@ -150,6 +152,7 @@ public class ThriftHiveMetastoreClient
         this.metastoreSupportsDateStatistics = requireNonNull(metastoreSupportsDateStatistics, "metastoreSupportsDateStatistics is null");
         this.metastoreSupportsTableMeta = metastoreSupportsTableMeta;
         this.chosenGetTableAlternative = requireNonNull(chosenGetTableAlternative, "chosenGetTableAlternative is null");
+        this.chosenGetTableMetaAlternative = requireNonNull(chosenGetTableMetaAlternative, "chosenGetTableMetaAlternative is null");
         this.chosenTableParamAlternative = requireNonNull(chosenTableParamAlternative, "chosenTableParamAlternative is null");
         this.chosenAlterTransactionalTableAlternative = requireNonNull(chosenAlterTransactionalTableAlternative, "chosenAlterTransactionalTableAlternative is null");
         this.chosenAlterPartitionsAlternative = requireNonNull(chosenAlterPartitionsAlternative, "chosenAlterPartitionsAlternative is null");
@@ -221,7 +224,16 @@ public class ThriftHiveMetastoreClient
                     .filter(tableMeta -> tableMeta.getDbName().equals(databaseName))
                     .collect(toImmutableList());
         }
-        return client.getTableMeta(prependCatalogToDbName(catalogName, databaseName), "*", ImmutableList.of());
+        return alternativeCall(
+                ThriftHiveMetastoreClient::defaultIsValidExceptionalResponse,
+                chosenGetTableMetaAlternative,
+                () -> client.getTableMeta(prependCatalogToDbName(catalogName, databaseName), "*", ImmutableList.of()),
+                // Fallback for Hive < 2.0 metastores (e.g. Hive 1.2.x) which do not implement get_table_meta.
+                // get_tables_by_type is also unavailable there (added in Hive 2.3), so views cannot be
+                // distinguished from tables in the response; every relation is reported as a TABLE.
+                () -> client.getTables(prependCatalogToDbName(catalogName, databaseName), ".*").stream()
+                        .map(name -> new TableMeta(databaseName, name, RelationType.TABLE.toString()))
+                        .collect(toImmutableList()));
     }
 
     @Override
@@ -359,7 +371,10 @@ public class ThriftHiveMetastoreClient
                     catalogName.ifPresent(request::setCatName);
                     request.setCapabilities(new ClientCapabilities(ImmutableList.of(ClientCapability.INSERT_ONLY_TABLES)));
                     return client.getTableReq(request).getTable();
-                });
+                },
+                // Fallback for Hive < 2.1 metastores (e.g. Hive 1.2.x) which do not implement get_table_req.
+                // ClientCapabilities cannot be advertised on the legacy call; Hive 1.x has no INSERT_ONLY tables anyway.
+                () -> client.getTable(prependCatalogToDbName(catalogName, databaseName), tableName));
     }
 
     @Override
