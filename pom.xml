@@ -213,12 +213,18 @@
         <dep.google.http.client.version>1.46.3</dep.google.http.client.version>
         <dep.httpcore5.version>5.3.4</dep.httpcore5.version>
         <dep.iceberg.version>1.8.1</dep.iceberg.version>
+        <dep.jackson.version>2.21.1</dep.jackson.version>
         <dep.jna.version>5.16.0</dep.jna.version>
         <dep.joda.version>2.13.1</dep.joda.version>
         <dep.jsonwebtoken.version>0.12.6</dep.jsonwebtoken.version>
         <dep.jts.version>1.20.0</dep.jts.version>
         <dep.kafka-clients.version>3.7.2.${odp.release.version}</dep.kafka-clients.version>
+        <dep.logback.version>1.5.25</dep.logback.version>
         <dep.okio.version>3.10.2</dep.okio.version>
+        <dep.opentelemetry-alpha.version>1.62.0-alpha</dep.opentelemetry-alpha.version>
+        <dep.opentelemetry-instrumentation-alpha.version>2.17.1-alpha</dep.opentelemetry-instrumentation-alpha.version>
+        <dep.opentelemetry-instrumentation.version>2.17.1</dep.opentelemetry-instrumentation.version>
+        <dep.opentelemetry.version>1.62.0</dep.opentelemetry.version>
         <dep.parquet.version>1.15.2</dep.parquet.version>
         <dep.plugin.failsafe.version>${dep.plugin.surefire.version}</dep.plugin.failsafe.version>
         <dep.protobuf.version>3.25.6</dep.protobuf.version>
@@ -236,29 +242,10 @@
         Since 1.1.0, the default behaviour for such conflicts changed from overwriting the artifact to failing the build.
         -->
         <provisio.fallbackTargetFileNameMode>GA</provisio.fallbackTargetFileNameMode>
-            <dep.jackson.version>2.21.1</dep.jackson.version>
-          <dep.opentelemetry.version>1.62.0</dep.opentelemetry.version>
-        <dep.opentelemetry-alpha.version>1.62.0-alpha</dep.opentelemetry-alpha.version>
-        <dep.opentelemetry-instrumentation.version>2.17.1</dep.opentelemetry-instrumentation.version>
-        <dep.opentelemetry-instrumentation-alpha.version>2.17.1-alpha</dep.opentelemetry-instrumentation-alpha.version>
-    <dep.logback.version>1.5.25</dep.logback.version>
-
-  </properties>
+    </properties>
 
     <dependencyManagement>
         <dependencies>
-<dependency>
-                <groupId>io.projectreactor.netty</groupId>
-                <artifactId>reactor-netty-http</artifactId>
-                <version>1.2.8</version>
-            </dependency>
-
-
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-configuration2</artifactId>
-                <version>2.15.0</version>
-            </dependency>
 
             <dependency>
                 <groupId>com.azure</groupId>
@@ -361,6 +348,14 @@
                 <version>2.30.33</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <!-- Clickhouse client will by default use LZ4 compression, which requires this dependency -->
+                <!-- https://github.com/ClickHouse/clickhouse-docs/pull/2408/files -->
+                <groupId>at.yawk.lz4</groupId>
+                <artifactId>lz4-java</artifactId>
+                <version>1.10.1</version>
             </dependency>
 
             <dependency>
@@ -851,6 +846,12 @@
             </dependency>
 
             <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-netty-shaded</artifactId>
+                <version>1.75.0</version>
+            </dependency>
+
+            <dependency>
                 <groupId>io.jsonwebtoken</groupId>
                 <artifactId>jjwt-api</artifactId>
                 <version>${dep.jsonwebtoken.version}</version>
@@ -958,6 +959,12 @@
             <dependency>
                 <groupId>io.projectreactor.netty</groupId>
                 <artifactId>reactor-netty-core</artifactId>
+                <version>1.2.8</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.projectreactor.netty</groupId>
+                <artifactId>reactor-netty-http</artifactId>
                 <version>1.2.8</version>
             </dependency>
 
@@ -1932,6 +1939,12 @@
 
             <dependency>
                 <groupId>org.apache.commons</groupId>
+                <artifactId>commons-configuration2</artifactId>
+                <version>2.15.0</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
                 <version>3.18.0</version>
             </dependency>
@@ -2225,6 +2238,12 @@
             </dependency>
 
             <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>1.84</version>
+            </dependency>
+
+            <dependency>
                 <groupId>org.checkerframework</groupId>
                 <artifactId>checker-qual</artifactId>
                 <version>3.49.1</version>
@@ -2301,14 +2320,6 @@
                         <artifactId>junit</artifactId>
                     </exclusion>
                 </exclusions>
-            </dependency>
-
-            <dependency>
-                <!-- Clickhouse client will by default use LZ4 compression, which requires this dependency -->
-                <!-- https://github.com/ClickHouse/clickhouse-docs/pull/2408/files -->
-                <groupId>at.yawk.lz4</groupId>
-                <artifactId>lz4-java</artifactId>
-                <version>1.10.1</version>
             </dependency>
 
             <dependency>
@@ -2436,16 +2447,6 @@
                 <version>${dep.confluent.version}</version>
                 <!-- This is under Confluent Community License and it should not be used with compile scope -->
                 <scope>test</scope>
-            </dependency>
-        <dependency>
-                <groupId>io.grpc</groupId>
-                <artifactId>grpc-netty-shaded</artifactId>
-                <version>1.75.0</version>
-            </dependency>
-        <dependency>
-                <groupId>org.bouncycastle</groupId>
-                <artifactId>bcprov-jdk18on</artifactId>
-                <version>1.84</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
