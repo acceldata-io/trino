@@ -15,7 +15,7 @@
 
     <properties>
         <!-- Version needs to be hardcoded for the release plugin to work. It will be updated by the release plugin. -->
-        <dep.presto-jdbc-under-test>481</dep.presto-jdbc-under-test>
+        <dep.presto-jdbc-under-test>481.${odp.release.version}</dep.presto-jdbc-under-test>
     </properties>
 
     <dependencies>
