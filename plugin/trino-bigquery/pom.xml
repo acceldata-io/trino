@@ -20,6 +20,25 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- grpc-api/core/util: 1.70.0 (airbase/google-cloud BOM) vs 1.75.0 (grpc-netty-shaded:1.75.0 runtime deps) -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-api</artifactId>
+                <version>1.75.0</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-core</artifactId>
+                <version>1.75.0</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-util</artifactId>
+                <version>1.75.0</version>
+            </dependency>
+
             <dependency>
                 <groupId>io.opencensus</groupId>
                 <artifactId>opencensus-api</artifactId>
