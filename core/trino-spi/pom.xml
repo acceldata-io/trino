@@ -54,6 +54,12 @@
 
         <dependency>
             <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-common</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-context</artifactId>
             <scope>runtime</scope>
         </dependency>
@@ -313,6 +319,18 @@
                                     <code>java.method.removed</code>
                                     <old>method long io.trino.spi.connector.Connector::getInitialMemoryRequirement()</old>
                                     <justification>Remove unused connector method</justification>
+                                </item>
+                                <item>
+                                    <ignore>true</ignore>
+                                    <code>java.class.externalClassExposedInAPI</code>
+                                    <new>class io.opentelemetry.api.common.Empty</new>
+                                    <justification>New type introduced in opentelemetry-api 1.62.0 transitively exposed via ExchangeManagerContext; not a breaking change for ODP consumers</justification>
+                                </item>
+                                <item>
+                                    <ignore>true</ignore>
+                                    <code>java.class.externalClassExposedInAPI</code>
+                                    <new>interface io.opentelemetry.api.trace.TraceFlagsBuilder</new>
+                                    <justification>New type introduced in opentelemetry-api 1.62.0 transitively exposed via ExchangeManagerContext; not a breaking change for ODP consumers</justification>
                                 </item>
                             </differences>
                         </revapi.differences>
