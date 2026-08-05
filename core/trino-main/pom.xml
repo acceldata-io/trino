@@ -221,11 +221,6 @@
 
         <dependency>
             <groupId>io.opentelemetry</groupId>
-            <artifactId>opentelemetry-common</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-context</artifactId>
         </dependency>
 
@@ -396,6 +391,18 @@
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp-jvm</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-common</artifactId>
             <scope>runtime</scope>
         </dependency>
 
