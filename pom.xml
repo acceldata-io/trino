@@ -2860,6 +2860,18 @@
                                     </dependency>
                                 </conflictingDependencies>
                             </exception>
+                            <exception>
+                                <conflictingDependencies>
+                                    <dependency>
+                                        <groupId>at.yawk.lz4</groupId>
+                                        <artifactId>lz4-java</artifactId>
+                                    </dependency>
+                                    <dependency>
+                                        <groupId>org.lz4</groupId>
+                                        <artifactId>lz4-java</artifactId>
+                                    </dependency>
+                                </conflictingDependencies>
+                            </exception>
                         </exceptions>
                     </configuration>
                 </plugin>
