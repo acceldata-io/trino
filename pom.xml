@@ -10,7 +10,7 @@
 
     <groupId>io.trino</groupId>
     <artifactId>trino-root</artifactId>
-    <version>481.3.4.3.0-1</version>
+    <version>481.3.4.3.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>${project.artifactId}</name>
@@ -160,7 +160,7 @@
     </distributionManagement>
 
     <properties>
-        <odp.release.version>3.4.3.0-1</odp.release.version>
+        <odp.release.version>3.4.3.0-SNAPSHOT</odp.release.version>
         <project.build.targetJdk>25</project.build.targetJdk>
         <!-- for reproducible build support, updated by release plugin -->
         <project.build.outputTimestamp>2026-05-11T23:36:30Z</project.build.outputTimestamp>
