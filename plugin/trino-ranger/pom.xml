@@ -450,6 +450,22 @@
                                 <package>org.jspecify.annotations</package>
                             </packages>
                         </exception>
+                        <exception>
+                            <conflictingDependencies>
+                                <dependency>
+                                    <groupId>aopalliance</groupId>
+                                    <artifactId>aopalliance</artifactId>
+                                </dependency>
+                                <dependency>
+                                    <groupId>org.glassfish.hk2.external</groupId>
+                                    <artifactId>aopalliance-repackaged</artifactId>
+                                </dependency>
+                            </conflictingDependencies>
+                            <packages>
+                                <package>org.aopalliance.aop</package>
+                                <package>org.aopalliance.intercept</package>
+                            </packages>
+                        </exception>
                     </exceptions>
                 </configuration>
             </plugin>
