@@ -209,6 +209,26 @@
                     </excludes>
                 </configuration>
             </plugin>
+
+            <plugin>
+                <groupId>org.basepom.maven</groupId>
+                <artifactId>duplicate-finder-maven-plugin</artifactId>
+                <configuration>
+                    <ignoredClassPatterns>
+                        <ignoredClassPattern>org.aopalliance.*</ignoredClassPattern>
+                        <ignoredClassPattern>javassist.*</ignoredClassPattern>
+                        <ignoredClassPattern>org.glassfish.jersey.*</ignoredClassPattern>
+                        <ignoredClassPattern>org.glassfish.hk2.*</ignoredClassPattern>
+                        <ignoredClassPattern>org.jvnet.hk2.*</ignoredClassPattern>
+                        <ignoredClassPattern>com.sun.research.ws.wadl.*</ignoredClassPattern>
+                        <ignoredClassPattern>jersey.repackaged.*</ignoredClassPattern>
+                    </ignoredClassPatterns>
+                    <ignoredResourcePatterns>
+                        <ignoredResourcePattern>org/glassfish/jersey/.*/localization.properties</ignoredResourcePattern>
+                        <ignoredResourcePattern>org/glassfish/jersey/internal/build.properties</ignoredResourcePattern>
+                    </ignoredResourcePatterns>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

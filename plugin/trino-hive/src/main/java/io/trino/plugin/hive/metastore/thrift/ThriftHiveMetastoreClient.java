@@ -67,6 +67,7 @@ import io.trino.hive.thrift.metastore.UnlockRequest;
 import io.trino.plugin.base.util.LoggingInvocationHandler;
 import io.trino.plugin.hive.metastore.thrift.MetastoreSupportsDateStatistics.DateStatisticsSupport;
 import io.trino.plugin.hive.util.AcidTables;
+import io.trino.spi.connector.RelationType;
 import jakarta.annotation.Nullable;
 import org.apache.thrift.TApplicationException;
 import org.apache.thrift.TException;
@@ -410,7 +411,7 @@ public class ThriftHiveMetastoreClient
     public void deleteTableColumnStatistics(String databaseName, String tableName, String columnName)
             throws TException
     {
-        client.deleteTableColumnStatistics(prependCatalogToDbName(catalogName, databaseName), tableName, columnName, "hive");
+        client.deleteTableColumnStatistics(prependCatalogToDbName(catalogName, databaseName), tableName, columnName, engine);
     }
 
     @Override
@@ -462,7 +463,7 @@ public class ThriftHiveMetastoreClient
     public void deletePartitionColumnStatistics(String databaseName, String tableName, String partitionName, String columnName)
             throws TException
     {
-        client.deletePartitionColumnStatistics(prependCatalogToDbName(catalogName, databaseName), tableName, partitionName, columnName, "hive");
+        client.deletePartitionColumnStatistics(prependCatalogToDbName(catalogName, databaseName), tableName, partitionName, columnName, engine);
     }
 
     private void setColumnStatistics(String objectName, List<ColumnStatisticsObj> statistics, UnaryCall<List<ColumnStatisticsObj>> saveColumnStatistics)
@@ -854,7 +855,7 @@ public class ThriftHiveMetastoreClient
                 },
                 () -> {
                     table.setWriteId(originalWriteId);
-                    client.alterTableWithEnvironmentContext(prependCatalogToDbName(catalogName, table.getDbName()), table.getTableName(), table, environmentContext);
+                    client.alterTableWithEnvironmentContext(table.getDbName(), table.getTableName(), table, environmentContext);
                     return null;
                 });
     }
