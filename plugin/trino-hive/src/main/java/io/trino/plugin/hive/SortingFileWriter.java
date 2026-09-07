@@ -142,6 +142,7 @@ public final class SortingFileWriter
     {
         flushed = true;
 
+        sortBuffer.clear();
         Closeable rollbackAction = createRollbackAction(fileSystem, tempFiles);
         if (!sortBuffer.isEmpty()) {
             // skip temporary files entirely if the total output size is small
@@ -168,6 +169,7 @@ public final class SortingFileWriter
     @Override
     public void rollback()
     {
+        sortBuffer.clear();
         Closeable rollbackAction = createRollbackAction(fileSystem, tempFiles);
         try (Closer closer = Closer.create()) {
             closer.register(outputWriter::rollback);
