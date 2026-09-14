@@ -332,31 +332,6 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- Explicit version overrides for CVE fixes -->
-            <dependency>
-                <groupId>org.eclipse.jetty</groupId>
-                <artifactId>jetty-security</artifactId>
-                <version>12.1.13</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-core</artifactId>
-                <version>2.21.4</version>
-            </dependency>
-
-            <dependency>
-                <groupId>tools.jackson.core</groupId>
-                <artifactId>jackson-core</artifactId>
-                <version>3.1.4</version>
-            </dependency>
-
-            <dependency>
-                <groupId>tools.jackson.core</groupId>
-                <artifactId>jackson-databind</artifactId>
-                <version>3.1.4</version>
-            </dependency>
-
             <dependency>
                 <!-- Clickhouse client will by default use LZ4 compression, which requires this dependency -->
                 <!-- https://github.com/ClickHouse/clickhouse-docs/pull/2408/files -->
@@ -466,6 +441,12 @@
                 <groupId>com.facebook.thirdparty</groupId>
                 <artifactId>libsvm</artifactId>
                 <version>3.18.1</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>2.21.4</version>
             </dependency>
 
             <dependency>
@@ -655,6 +636,18 @@
                 <groupId>io.airlift</groupId>
                 <artifactId>bytecode</artifactId>
                 <version>1.6</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.airlift</groupId>
+                <artifactId>http-server</artifactId>
+                <version>424</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.eclipse.jetty</groupId>
+                        <artifactId>jetty-server</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
 
             <dependency>
@@ -2243,6 +2236,13 @@
                 <version>4.1.1</version>
             </dependency>
 
+            <!-- Explicit version overrides for CVE fixes -->
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-security</artifactId>
+                <version>12.1.13</version>
+            </dependency>
+
             <dependency>
                 <groupId>org.hdrhistogram</groupId>
                 <artifactId>HdrHistogram</artifactId>
@@ -2345,6 +2345,18 @@
                 <groupId>org.yaml</groupId>
                 <artifactId>snakeyaml</artifactId>
                 <version>2.6</version>
+            </dependency>
+
+            <dependency>
+                <groupId>tools.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>3.1.4</version>
+            </dependency>
+
+            <dependency>
+                <groupId>tools.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>3.1.4</version>
             </dependency>
 
             <dependency>
