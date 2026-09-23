@@ -13,7 +13,7 @@
     <description>Trino - Pinot connector</description>
 
     <properties>
-        <dep.pinot.version>1.4.0.${odp.release.version}</dep.pinot.version>
+        <dep.pinot.version>1.5.1.${odp.release.version}</dep.pinot.version>
         <!-- guava: 33.4.8-jre vs 33.5.0-jre. Overridden as a property so that airbase keeps excluding the empty listenablefuture artifact -->
         <dep.guava.version>33.5.0-jre</dep.guava.version>
         <air.compiler.fail-warnings>true</air.compiler.fail-warnings>
