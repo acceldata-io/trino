@@ -40,11 +40,11 @@
             </dependency>
             <!-- Pin versions to resolve RequireUpperBoundDeps conflicts -->
 
-            <!-- error_prone_annotations: 2.38.0 vs 2.41.0 (from guava:33.5.0-jre) -->
+            <!-- error_prone_annotations: 2.38.0 vs 2.45.0 (from grpc-api:1.79.0; guava:33.5.0-jre needs 2.41.0) -->
             <dependency>
                 <groupId>com.google.errorprone</groupId>
                 <artifactId>error_prone_annotations</artifactId>
-                <version>2.41.0</version>
+                <version>2.45.0</version>
             </dependency>
 
             <!-- protobuf-java: 3.25.5/3.25.6 vs 3.25.8 -->
