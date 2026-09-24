@@ -642,44 +642,12 @@
                 <groupId>io.airlift</groupId>
                 <artifactId>http-client</artifactId>
                 <version>${dep.airlift.version}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>org.eclipse.jetty</groupId>
-                        <artifactId>jetty-jmx</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.eclipse.jetty</groupId>
-                        <artifactId>jetty-util</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.eclipse.jetty.http2</groupId>
-                        <artifactId>jetty-http2-common</artifactId>
-                    </exclusion>
-                </exclusions>
             </dependency>
 
             <dependency>
                 <groupId>io.airlift</groupId>
                 <artifactId>http-server</artifactId>
                 <version>${dep.airlift.version}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>org.eclipse.jetty</groupId>
-                        <artifactId>jetty-jmx</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.eclipse.jetty</groupId>
-                        <artifactId>jetty-server</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.eclipse.jetty</groupId>
-                        <artifactId>jetty-util</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.eclipse.jetty.http2</groupId>
-                        <artifactId>jetty-http2-common</artifactId>
-                    </exclusion>
-                </exclusions>
             </dependency>
 
             <dependency>
@@ -2279,12 +2247,6 @@
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-io</artifactId>
                 <version>12.1.13</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>org.eclipse.jetty</groupId>
-                        <artifactId>jetty-util</artifactId>
-                    </exclusion>
-                </exclusions>
             </dependency>
 
             <dependency>
@@ -2300,16 +2262,9 @@
             </dependency>
 
             <!--
-              jetty-server, jetty-util, jetty-jmx, jetty-http and jetty-http2-common are excluded from
-              io.airlift:http-client / io.airlift:http-server above (see the CVE fixes for
-              jetty-io/jetty-security in this same dependencyManagement block). Those exclusions
-              require an explicit replacement version here, the same way jetty-io/jetty-security
-              are pinned - otherwise the excluded artifacts are dropped from the dependency graph
-              entirely and are missing from the built server distribution's lib/ directory,
-              causing NoClassDefFoundError/ClassNotFoundException at Trino startup
-              (org.eclipse.jetty.util.ssl.SslContextFactory$Server,
-              org.eclipse.jetty.http2.RateControl$Factory,
-              org.eclipse.jetty.http2.hpack.HpackEncoder).
+              All Jetty libraries are pinned to 12.1.13 to ensure version consistency
+              and fix CVE issues. This prevents RequireUpperBoundDeps errors and
+              ensures all Jetty components use the same version.
             -->
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
