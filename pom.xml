@@ -232,6 +232,7 @@
         Since 1.1.0, the default behaviour for such conflicts changed from overwriting the artifact to failing the build.
         -->
         <provisio.fallbackTargetFileNameMode>GA</provisio.fallbackTargetFileNameMode>
+        <jetty.version>12.1.13</jetty.version>
     </properties>
 
     <dependencyManagement>
@@ -2240,25 +2241,25 @@
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-http</artifactId>
-                <version>12.1.13</version>
+                <version>${jetty.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-io</artifactId>
-                <version>12.1.13</version>
+                <version>${jetty.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-jmx</artifactId>
-                <version>12.1.13</version>
+                <version>${jetty.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-security</artifactId>
-                <version>12.1.13</version>
+                <version>${jetty.version}</version>
             </dependency>
 
             <!--
@@ -2269,25 +2270,25 @@
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-server</artifactId>
-                <version>12.1.13</version>
+                <version>${jetty.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-util</artifactId>
-                <version>12.1.13</version>
+                <version>${jetty.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>org.eclipse.jetty.http2</groupId>
                 <artifactId>jetty-http2-common</artifactId>
-                <version>12.1.13</version>
+                <version>${jetty.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>org.eclipse.jetty.http2</groupId>
                 <artifactId>jetty-http2-hpack</artifactId>
-                <version>12.1.13</version>
+                <version>${jetty.version}</version>
             </dependency>
 
             <dependency>
