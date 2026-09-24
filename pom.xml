@@ -2280,6 +2280,12 @@
                 </exclusions>
             </dependency>
 
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-jmx</artifactId>
+                <version>12.1.13</version>
+            </dependency>
+
             <!-- Explicit version overrides for CVE fixes -->
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
@@ -2308,12 +2314,6 @@
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-util</artifactId>
-                <version>12.1.13</version>
-            </dependency>
-
-            <dependency>
-                <groupId>org.eclipse.jetty</groupId>
-                <artifactId>jetty-jmx</artifactId>
                 <version>12.1.13</version>
             </dependency>
 
