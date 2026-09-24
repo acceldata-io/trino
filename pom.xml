@@ -662,24 +662,6 @@
                 <groupId>io.airlift</groupId>
                 <artifactId>http-server</artifactId>
                 <version>${dep.airlift.version}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>org.eclipse.jetty</groupId>
-                        <artifactId>jetty-jmx</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.eclipse.jetty</groupId>
-                        <artifactId>jetty-server</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.eclipse.jetty</groupId>
-                        <artifactId>jetty-util</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.eclipse.jetty.http2</groupId>
-                        <artifactId>jetty-http2-common</artifactId>
-                    </exclusion>
-                </exclusions>
             </dependency>
 
             <dependency>
@@ -2284,6 +2266,12 @@
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-security</artifactId>
+                <version>12.1.13</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.eclipse.jetty.http2</groupId>
+                <artifactId>jetty-http2-hpack</artifactId>
                 <version>12.1.13</version>
             </dependency>
 
