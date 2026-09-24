@@ -2268,6 +2268,13 @@
                 <version>4.1.1</version>
             </dependency>
 
+            <!-- Explicit version overrides for CVE fixes -->
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-http</artifactId>
+                <version>12.1.13</version>
+            </dependency>
+
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-io</artifactId>
@@ -2286,7 +2293,6 @@
                 <version>12.1.13</version>
             </dependency>
 
-            <!-- Explicit version overrides for CVE fixes -->
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-security</artifactId>
@@ -2294,7 +2300,7 @@
             </dependency>
 
             <!--
-              jetty-server, jetty-util, jetty-jmx and jetty-http2-common are excluded from
+              jetty-server, jetty-util, jetty-jmx, jetty-http and jetty-http2-common are excluded from
               io.airlift:http-client / io.airlift:http-server above (see the CVE fixes for
               jetty-io/jetty-security in this same dependencyManagement block). Those exclusions
               require an explicit replacement version here, the same way jetty-io/jetty-security
