@@ -232,7 +232,7 @@
         Since 1.1.0, the default behaviour for such conflicts changed from overwriting the artifact to failing the build.
         -->
         <provisio.fallbackTargetFileNameMode>GA</provisio.fallbackTargetFileNameMode>
-        <jetty.version>12.1.13</jetty.version>
+        <jetty.version>12.1.9</jetty.version>
     </properties>
 
     <dependencyManagement>
