@@ -37,8 +37,10 @@ import io.trino.plugin.jdbc.BaseJdbcClient;
 import io.trino.plugin.jdbc.BaseJdbcConfig;
 import io.trino.plugin.jdbc.ColumnMapping;
 import io.trino.plugin.jdbc.ConnectionFactory;
+import io.trino.plugin.jdbc.ForwardingConnection;
 import io.trino.plugin.jdbc.JdbcColumnHandle;
 import io.trino.plugin.jdbc.JdbcExpression;
+import io.trino.plugin.jdbc.JdbcOutputTableHandle;
 import io.trino.plugin.jdbc.JdbcSortItem;
 import io.trino.plugin.jdbc.JdbcTableHandle;
 import io.trino.plugin.jdbc.JdbcTypeHandle;
@@ -115,6 +117,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.emptyToNull;
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static com.google.common.base.Verify.verify;
+import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static io.airlift.slice.Slices.wrappedBuffer;
 import static io.trino.plugin.clickhouse.ClickHouseSessionProperties.isMapStringAsVarchar;
@@ -995,6 +998,54 @@ public class ClickHouseClient
     private static SliceWriteFunction uuidWriteFunction()
     {
         return (statement, index, value) -> statement.setObject(index, trinoUuidToJavaUuid(value), Types.OTHER);
+    }
+
+    @Override
+    public Connection getConnection(ConnectorSession session, JdbcOutputTableHandle handle)
+            throws SQLException
+    {
+        Connection connection = super.getConnection(session, handle);
+        Optional<String> inputSql = inputInsertSql(handle);
+        if (inputSql.isEmpty()) {
+            return connection;
+        }
+        // A user who may insert into the table but not read it (see ClickHouseInputInsert)
+        return new ForwardingConnection()
+        {
+            @Override
+            protected Connection delegate()
+            {
+                return connection;
+            }
+
+            @Override
+            public PreparedStatement prepareStatement(String sql)
+                    throws SQLException
+            {
+                return ClickHouseInputInsert.prepareInsert(connection, sql, inputSql.get());
+            }
+        };
+    }
+
+    /**
+     * The INSERT through input() for a plain INSERT into the target table whose every column's
+     * ClickHouse type is known; otherwise empty.
+     */
+    private Optional<String> inputInsertSql(JdbcOutputTableHandle handle)
+    {
+        Optional<List<JdbcTypeHandle>> jdbcTypes = handle.getJdbcColumnTypes();
+        if (handle.getTemporaryTableName().isPresent() || handle.getPageSinkIdColumnName().isPresent()
+                || jdbcTypes.isEmpty()
+                || jdbcTypes.get().isEmpty()
+                || jdbcTypes.get().size() != handle.getColumnNames().size()
+                || jdbcTypes.get().stream().anyMatch(type -> type.jdbcTypeName().isEmpty())) {
+            return Optional.empty();
+        }
+        RemoteTableName table = handle.getRemoteTableName();
+        return Optional.of(ClickHouseInputInsert.insertSql(
+                quoted(table.getCatalogName().orElse(null), table.getSchemaName().orElse(null), table.getTableName()),
+                handle.getColumnNames().stream().map(this::quoted).collect(toImmutableList()),
+                jdbcTypes.get().stream().map(type -> type.jdbcTypeName().orElseThrow()).collect(toImmutableList())));
     }
 
     public static boolean supportsPushdown(Variable variable, RewriteContext<ParameterizedExpression> context)
