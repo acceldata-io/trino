@@ -130,6 +130,11 @@ public class SortBuffer
             pageBuilder.reset();
         }
 
+        clear();
+    }
+
+    public void clear()
+    {
         pages.clear();
         rowCount = 0;
         usedMemoryBytes = 0;

@@ -23,6 +23,7 @@ import io.trino.sql.ir.Logical;
 import io.trino.sql.planner.DeterminismEvaluator;
 
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -31,7 +32,6 @@ import static io.trino.sql.ir.IrUtils.combinePredicates;
 import static io.trino.sql.ir.IrUtils.extractPredicates;
 import static io.trino.sql.ir.Logical.Operator.OR;
 import static io.trino.sql.planner.DeterminismEvaluator.isDeterministic;
-import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
@@ -84,10 +84,14 @@ public final class ExtractCommonPredicatesExpressionRewriter
         {
             List<List<Expression>> subPredicates = getSubPredicates(node);
 
-            Set<Expression> commonPredicates = ImmutableSet.copyOf(subPredicates.stream()
-                    .map(this::filterDeterministicPredicates)
-                    .reduce(Sets::intersection)
-                    .orElse(emptySet()));
+            Set<Expression> mutableCommonPredicates = new LinkedHashSet<>();
+            if (!subPredicates.isEmpty()) {
+                mutableCommonPredicates.addAll(filterDeterministicPredicates(subPredicates.getFirst()));
+                for (int index = 1; index < subPredicates.size() && !mutableCommonPredicates.isEmpty(); index++) {
+                    mutableCommonPredicates.retainAll(filterDeterministicPredicates(subPredicates.get(index)));
+                }
+            }
+            Set<Expression> commonPredicates = ImmutableSet.copyOf(mutableCommonPredicates);
 
             List<List<Expression>> uncorrelatedSubPredicates = subPredicates.stream()
                     .map(predicateList -> removeAll(predicateList, commonPredicates))

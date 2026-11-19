@@ -245,6 +245,28 @@ public class TestTableWriterOperator
         assertThat(info.getStatisticsCpuTime().getValue(NANOSECONDS)).isGreaterThan(0);
     }
 
+    @Test
+    public void testCloseReleasesPageSinkMemoryAfterAbort()
+            throws Exception
+    {
+        TableWriteInfoTestPageSink pageSink = new TableWriteInfoTestPageSink();
+        PageSinkManager pageSinkManager = new PageSinkManager(CatalogServiceProvider.singleton(TEST_CATALOG_HANDLE, new ConstantPageSinkProvider(pageSink)));
+        TableWriterOperator operator = (TableWriterOperator) createTableWriterOperator(
+                pageSinkManager,
+                new DevNullOperatorFactory(1, new PlanNodeId("test")),
+                ImmutableList.of(BIGINT, VARBINARY));
+        MemoryTrackingContext memoryContext = operator.getOperatorContext().getOperatorMemoryContext();
+        pageSink.setMemoryContext(memoryContext);
+
+        operator.addInput(rowPagesBuilder(BIGINT).row(42).build().get(0));
+        assertThat(memoryContext.getUserMemory()).isGreaterThan(0);
+
+        operator.close();
+
+        assertThat(pageSink.getUserMemoryDuringAbort()).isGreaterThan(0);
+        assertThat(memoryContext.getUserMemory()).isEqualTo(0);
+    }
+
     private void assertMemoryIsReleased(TableWriterOperator tableWriterOperator)
     {
         OperatorContext tableWriterOperatorOperatorContext = tableWriterOperator.getOperatorContext();
@@ -367,6 +389,18 @@ public class TestTableWriterOperator
             implements ConnectorPageSink
     {
         private final List<Page> pages = new ArrayList<>();
+        private MemoryTrackingContext memoryContext;
+        private long userMemoryDuringAbort;
+
+        void setMemoryContext(MemoryTrackingContext memoryContext)
+        {
+            this.memoryContext = memoryContext;
+        }
+
+        long getUserMemoryDuringAbort()
+        {
+            return userMemoryDuringAbort;
+        }
 
         @Override
         public CompletableFuture<?> appendPage(Page page)
@@ -402,6 +436,12 @@ public class TestTableWriterOperator
         }
 
         @Override
-        public void abort() {}
+        public void abort()
+        {
+            if (memoryContext != null) {
+                userMemoryDuringAbort = memoryContext.getUserMemory();
+            }
+            pages.clear();
+        }
     }
 }

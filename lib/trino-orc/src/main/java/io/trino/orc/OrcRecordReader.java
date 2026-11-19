@@ -581,7 +581,7 @@ public class OrcRecordReader
         }
     }
 
-    private void validateWriteStripe(int rowCount)
+    private void validateWriteStripe(long rowCount)
     {
         writeChecksumBuilder.ifPresent(builder -> builder.addStripe(rowCount));
     }

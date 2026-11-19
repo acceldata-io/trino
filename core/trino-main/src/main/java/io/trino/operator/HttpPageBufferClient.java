@@ -280,11 +280,11 @@ public final class HttpPageBufferClient
     @Override
     public void close()
     {
-        boolean shouldDestroyTaskResults;
         Future<?> future;
         synchronized (this) {
-            shouldDestroyTaskResults = !closed;
-
+            if (closed) {
+                return;
+            }
             closed = true;
 
             future = this.future;
@@ -299,9 +299,7 @@ public final class HttpPageBufferClient
         }
 
         // destroy task results on the remote node; response is ignored
-        if (shouldDestroyTaskResults) {
-            destroyTaskResults();
-        }
+        destroyTaskResults();
     }
 
     public synchronized void scheduleRequest()
