@@ -258,7 +258,7 @@ public class TestTableWriterOperator
         MemoryTrackingContext memoryContext = operator.getOperatorContext().getOperatorMemoryContext();
         pageSink.setMemoryContext(memoryContext);
 
-        operator.addInput(rowPagesBuilder(BIGINT).row(42).buildPage());
+        operator.addInput(rowPagesBuilder(BIGINT).row(42).build().get(0));
         assertThat(memoryContext.getUserMemory()).isGreaterThan(0);
 
         operator.close();
