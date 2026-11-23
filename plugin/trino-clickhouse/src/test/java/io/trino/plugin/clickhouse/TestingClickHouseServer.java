@@ -62,6 +62,8 @@ public class TestingClickHouseServer
     {
         dockerContainer = new ClickHouseContainer(image)
                 .withCopyFileToContainer(forClasspathResource("custom.xml"), "/etc/clickhouse-server/config.d/custom.xml")
+                // Allows tests to create users with limited privileges
+                .withEnv("CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", "1")
                 .withStartupAttempts(10);
 
         dockerContainer.start();

@@ -375,6 +375,12 @@ statements, the connector supports the following features:
 ```{include} non-transactional-insert.fragment
 ```
 
+Inserts into existing tables read their data from the ClickHouse `input()`
+table function, so the ClickHouse user does not need the `SELECT` privilege on
+the table. It needs `INSERT` on the table and `CREATE TEMPORARY TABLE`, which
+ClickHouse requires for table functions. With the default transactional inserts,
+the user also needs the privileges to create, read and drop the temporary table.
+
 (clickhouse-alter-table)=
 ```{include} alter-schema-limitation.fragment
 ```

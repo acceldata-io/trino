@@ -1523,6 +1523,11 @@ public abstract class BaseClickHouseTypeMapping
                 .addRoundTrip("LineString", "[(0, 0), (1, 1)]", lineString, "CAST(ARRAY[ROW(0, 0), ROW(1, 1)] AS array(row(x double, y double)))")
                 .addRoundTrip("MultiLineString", "[[(0, 0), (1, 1)], [(2, 2), (3, 3)]]", new ArrayType(lineString), "CAST(ARRAY[ARRAY[ROW(0, 0), ROW(1, 1)], ARRAY[ROW(2, 2), ROW(3, 3)]] AS array(array(row(x double, y double))))")
                 .execute(getQueryRunner(), clickhouseCreateAndInsert("tpch.test_line_string"));
+
+        SqlDataTypeTest.create()
+                .addRoundTrip("LineString", "CAST(ARRAY[ROW(0, 0), ROW(1, 1)] AS array(row(x double, y double)))", lineString, "CAST(ARRAY[ROW(0, 0), ROW(1, 1)] AS array(row(x double, y double)))")
+                .addRoundTrip("MultiLineString", "CAST(ARRAY[ARRAY[ROW(0, 0), ROW(1, 1)]] AS array(array(row(x double, y double))))", new ArrayType(lineString), "CAST(ARRAY[ARRAY[ROW(0, 0), ROW(1, 1)]] AS array(array(row(x double, y double))))")
+                .execute(getQueryRunner(), clickhouseCreateAndTrinoInsert("tpch.test_line_string"));
     }
 
     private boolean isLineStringSupported()
