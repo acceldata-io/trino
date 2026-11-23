@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.inject.Inject;
 import io.airlift.bootstrap.LifeCycleManager;
 import io.trino.plugin.base.classloader.ClassLoaderSafeConnectorMetadata;
+import io.trino.plugin.base.mapping.MappingConfig;
 import io.trino.plugin.base.session.SessionPropertiesProvider;
 import io.trino.spi.connector.Connector;
 import io.trino.spi.connector.ConnectorAccessControl;
@@ -38,6 +39,7 @@ import java.util.Set;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.Sets.immutableEnumSet;
+import static io.trino.spi.connector.ConnectorCapabilities.CASE_SENSITIVE_SCHEMA_AND_TABLE_NAMES;
 import static io.trino.spi.connector.ConnectorCapabilities.NOT_NULL_COLUMN_CONSTRAINT;
 import static java.util.Objects.requireNonNull;
 
@@ -54,6 +56,7 @@ public class JdbcConnector
     private final List<PropertyMetadata<?>> sessionProperties;
     private final List<PropertyMetadata<?>> tableProperties;
     private final JdbcTransactionManager transactionManager;
+    private final boolean caseSensitiveNameMatching;
 
     @Inject
     public JdbcConnector(
@@ -66,7 +69,8 @@ public class JdbcConnector
             Set<ConnectorTableFunction> connectorTableFunctions,
             Set<SessionPropertiesProvider> sessionProperties,
             Set<TablePropertiesProvider> tableProperties,
-            JdbcTransactionManager transactionManager)
+            JdbcTransactionManager transactionManager,
+            MappingConfig mappingConfig)
     {
         this.lifeCycleManager = requireNonNull(lifeCycleManager, "lifeCycleManager is null");
         this.jdbcSplitManager = requireNonNull(jdbcSplitManager, "jdbcSplitManager is null");
@@ -82,6 +86,7 @@ public class JdbcConnector
                 .flatMap(tablePropertiesProvider -> tablePropertiesProvider.getTableProperties().stream())
                 .collect(toImmutableList());
         this.transactionManager = requireNonNull(transactionManager, "transactionManager is null");
+        this.caseSensitiveNameMatching = mappingConfig.isCaseSensitiveNameMatching();
     }
 
     @Override
@@ -165,6 +170,9 @@ public class JdbcConnector
     @Override
     public Set<ConnectorCapabilities> getCapabilities()
     {
+        if (caseSensitiveNameMatching) {
+            return immutableEnumSet(NOT_NULL_COLUMN_CONSTRAINT, CASE_SENSITIVE_SCHEMA_AND_TABLE_NAMES);
+        }
         return immutableEnumSet(NOT_NULL_COLUMN_CONSTRAINT);
     }
 }

@@ -37,6 +37,7 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
+import static io.trino.spi.connector.CatalogSchemaName.caseSensitiveCatalogSchemaName;
 import static java.util.Objects.requireNonNull;
 
 public class InjectedConnectorAccessControl
@@ -642,6 +643,6 @@ public class InjectedConnectorAccessControl
 
     private CatalogSchemaName getCatalogSchemaName(String schemaName)
     {
-        return new CatalogSchemaName(catalogName, schemaName);
+        return caseSensitiveCatalogSchemaName(catalogName, schemaName);
     }
 }

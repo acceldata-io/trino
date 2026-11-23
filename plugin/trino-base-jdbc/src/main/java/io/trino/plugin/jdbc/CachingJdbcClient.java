@@ -18,6 +18,7 @@ import com.google.common.base.Ticker;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheStats;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.google.inject.Inject;
 import io.airlift.units.Duration;
@@ -72,6 +73,7 @@ import static com.google.common.base.Throwables.throwIfInstanceOf;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static io.trino.cache.CacheUtils.invalidateAllIf;
+import static io.trino.spi.connector.SchemaTableName.caseSensitiveSchemaTableName;
 import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElse;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -403,7 +405,7 @@ public class CachingJdbcClient
     public void commitCreateTable(ConnectorSession session, JdbcOutputTableHandle handle, Set<Long> pageSinkIds)
     {
         delegate.commitCreateTable(session, handle, pageSinkIds);
-        invalidateTableCaches(handle.getRemoteTableName().getSchemaTableName());
+        cachedTableNames(handle.getRemoteTableName()).forEach(this::invalidateTableCaches);
     }
 
     @Override
@@ -416,7 +418,7 @@ public class CachingJdbcClient
     public void finishInsertTable(ConnectorSession session, JdbcOutputTableHandle handle, Set<Long> pageSinkIds)
     {
         delegate.finishInsertTable(session, handle, pageSinkIds);
-        onDataChanged(handle.getRemoteTableName().getSchemaTableName());
+        cachedTableNames(handle.getRemoteTableName()).forEach(this::onDataChanged);
     }
 
     @Override
@@ -434,9 +436,9 @@ public class CachingJdbcClient
     public void finishMerge(ConnectorSession session, JdbcMergeTableHandle handle, Set<Long> pageSinkIds)
     {
         delegate.finishMerge(session, handle, pageSinkIds);
-        onDataChanged(handle.getOutputTableHandle().getRemoteTableName().getSchemaTableName());
-        handle.getUpdateOutputTableHandle().values().forEach(tableHandle -> onDataChanged(tableHandle.getRemoteTableName().getSchemaTableName()));
-        handle.getDeleteOutputTableHandle().ifPresent(tableHandle -> onDataChanged(tableHandle.getRemoteTableName().getSchemaTableName()));
+        cachedTableNames(handle.getOutputTableHandle().getRemoteTableName()).forEach(this::onDataChanged);
+        handle.getUpdateOutputTableHandle().values().forEach(tableHandle -> cachedTableNames(tableHandle.getRemoteTableName()).forEach(this::onDataChanged));
+        handle.getDeleteOutputTableHandle().ifPresent(tableHandle -> cachedTableNames(tableHandle.getRemoteTableName()).forEach(this::onDataChanged));
     }
 
     @Override
@@ -729,6 +731,15 @@ public class CachingJdbcClient
     private void invalidateSchemasCache()
     {
         schemaNamesCache.invalidateAll();
+    }
+
+    @VisibleForTesting
+    static Set<SchemaTableName> cachedTableNames(RemoteTableName remoteTableName)
+    {
+        // Catalogs with case-sensitive names cache tables under the exact remote name
+        return ImmutableSet.of(
+                remoteTableName.getSchemaTableName(),
+                caseSensitiveSchemaTableName(remoteTableName.getSchemaName().orElseThrow(), remoteTableName.getTableName()));
     }
 
     private void invalidateTableCaches(SchemaTableName schemaTableName)

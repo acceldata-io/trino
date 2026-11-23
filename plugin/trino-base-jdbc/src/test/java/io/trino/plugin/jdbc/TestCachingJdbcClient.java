@@ -68,6 +68,7 @@ import static com.google.common.collect.MoreCollectors.onlyElement;
 import static io.airlift.concurrent.Threads.daemonThreadsNamed;
 import static io.airlift.units.Duration.ZERO;
 import static io.trino.plugin.jdbc.JdbcMetadata.getColumns;
+import static io.trino.spi.connector.SchemaTableName.caseSensitiveSchemaTableName;
 import static io.trino.spi.session.PropertyMetadata.stringProperty;
 import static io.trino.spi.type.IntegerType.INTEGER;
 import static io.trino.testing.InterfaceTestUtils.assertAllMethodsOverridden;
@@ -495,6 +496,16 @@ public class TestCachingJdbcClient
             assertThat(cachingJdbcClient.getColumns(firstSession, schemaTableName, remoteTableName)).doesNotContain(phantomColumn);
             assertThat(cachingJdbcClient.getColumns(secondSession, schemaTableName, remoteTableName)).doesNotContain(phantomColumn);
         });
+    }
+
+    @Test
+    public void testCachedTableNamesOfRemoteTable()
+    {
+        assertThat(CachingJdbcClient.cachedTableNames(new RemoteTableName(Optional.empty(), Optional.of("dup_db"), "dup_case")))
+                .containsExactly(new SchemaTableName("dup_db", "dup_case"));
+        // catalogs with case-sensitive names cache the table under its exact name
+        assertThat(CachingJdbcClient.cachedTableNames(new RemoteTableName(Optional.empty(), Optional.of("DUP_DB"), "DUP_CASE")))
+                .containsExactlyInAnyOrder(new SchemaTableName("dup_db", "dup_case"), caseSensitiveSchemaTableName("DUP_DB", "DUP_CASE"));
     }
 
     @Test

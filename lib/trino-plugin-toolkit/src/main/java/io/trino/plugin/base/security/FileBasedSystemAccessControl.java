@@ -63,6 +63,8 @@ import static io.trino.plugin.base.security.TableAccessControlRule.TablePrivileg
 import static io.trino.plugin.base.security.TableAccessControlRule.TablePrivilege.SELECT;
 import static io.trino.plugin.base.security.TableAccessControlRule.TablePrivilege.UPDATE;
 import static io.trino.spi.StandardErrorCode.INVALID_COLUMN_MASK;
+import static io.trino.spi.connector.CatalogSchemaName.caseSensitiveCatalogSchemaName;
+import static io.trino.spi.connector.SchemaTableName.caseSensitiveSchemaTableName;
 import static io.trino.spi.security.AccessDeniedException.denyAddColumn;
 import static io.trino.spi.security.AccessDeniedException.denyAlterColumn;
 import static io.trino.spi.security.AccessDeniedException.denyCommentColumn;
@@ -567,7 +569,7 @@ public class FileBasedSystemAccessControl
     public Set<SchemaTableName> filterTables(SystemSecurityContext context, String catalogName, Set<SchemaTableName> tableNames)
     {
         return tableNames.stream()
-                .filter(tableName -> isSchemaOwner(context, new CatalogSchemaName(catalogName, tableName.getSchemaName())) ||
+                .filter(tableName -> isSchemaOwner(context, caseSensitiveCatalogSchemaName(catalogName, tableName.getSchemaName())) ||
                         checkAnyTablePermission(context, new CatalogSchemaTableName(catalogName, tableName)))
                 .collect(toImmutableSet());
     }
@@ -1192,11 +1194,11 @@ public class FileBasedSystemAccessControl
         List<String> name = entityKindAndName.name();
         boolean denied = switch (ownedKind) {
             case "SCHEMA" -> {
-                CatalogSchemaName schema = new CatalogSchemaName(name.get(0), name.get(1));
+                CatalogSchemaName schema = caseSensitiveCatalogSchemaName(name.get(0), name.get(1));
                 yield !isSchemaOwner(context, schema) || !checkCanSetAuthorization(context, principal);
             }
             case "TABLE", "VIEW", "MATERIALIZED VIEW" -> {
-                CatalogSchemaTableName table = new CatalogSchemaTableName(name.get(0), name.get(1), name.get(2));
+                CatalogSchemaTableName table = new CatalogSchemaTableName(name.get(0), caseSensitiveSchemaTableName(name.get(1), name.get(2)));
                 yield !checkTablePermission(context, table, OWNERSHIP) || !checkCanSetAuthorization(context, principal);
             }
             default -> true;
