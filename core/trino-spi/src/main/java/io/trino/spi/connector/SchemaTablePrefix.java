@@ -16,6 +16,7 @@ package io.trino.spi.connector;
 import java.util.Objects;
 import java.util.Optional;
 
+import static io.trino.spi.connector.SchemaTableName.caseSensitiveSchemaTableName;
 import static io.trino.spi.connector.SchemaUtil.checkNotEmpty;
 
 public class SchemaTablePrefix
@@ -79,7 +80,7 @@ public class SchemaTablePrefix
     public Optional<SchemaTableName> toOptionalSchemaTableName()
     {
         if (schemaName.isPresent() && tableName.isPresent()) {
-            return Optional.of(new SchemaTableName(schemaName.get(), tableName.get()));
+            return Optional.of(caseSensitiveSchemaTableName(schemaName.get(), tableName.get()));
         }
         return Optional.empty();
     }

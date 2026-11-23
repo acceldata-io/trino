@@ -139,6 +139,7 @@ import static io.trino.spi.StandardErrorCode.NOT_FOUND;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.trino.spi.StandardErrorCode.SCHEMA_NOT_FOUND;
 import static io.trino.spi.StandardErrorCode.TABLE_NOT_FOUND;
+import static io.trino.spi.connector.CatalogSchemaName.caseSensitiveCatalogSchemaName;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static io.trino.sql.QueryUtil.aliased;
@@ -250,7 +251,7 @@ public final class ShowQueriesRewrite
         @Override
         protected Node visitShowTables(ShowTables showTables, Void context)
         {
-            CatalogSchemaName schema = createCatalogSchemaName(session, showTables, showTables.getSchema());
+            CatalogSchemaName schema = createCatalogSchemaName(session, showTables, showTables.getSchema(), metadata);
 
             accessControl.checkCanShowTables(session.toSecurityContext(), schema);
 
@@ -289,7 +290,7 @@ public final class ShowQueriesRewrite
             // TODO: Should this handle any entityKind?
             Optional<QualifiedName> tableName = showGrants.getGrantObject().map(GrantObject::getName);
             if (tableName.isPresent()) {
-                QualifiedObjectName qualifiedTableName = createQualifiedObjectName(session, showGrants, tableName.get());
+                QualifiedObjectName qualifiedTableName = createQualifiedObjectName(session, showGrants, tableName.get(), metadata);
                 if (!metadata.isView(session, qualifiedTableName)) {
                     RedirectionAwareTableHandle redirection = metadata.getRedirectionAwareTableHandle(session, qualifiedTableName);
                     if (redirection.tableHandle().isEmpty()) {
@@ -305,7 +306,7 @@ public final class ShowQueriesRewrite
                 // Check is wrong here, it should be accessControl#checkCanShowGrants() which is not yet implemented
                 accessControl.checkCanShowTables(
                         session.toSecurityContext(),
-                        new CatalogSchemaName(catalogName, qualifiedTableName.schemaName()));
+                        caseSensitiveCatalogSchemaName(catalogName, qualifiedTableName.schemaName()));
 
                 predicate = Optional.of(and(
                         equal(identifier("table_schema"), new StringLiteral(qualifiedTableName.schemaName())),
@@ -318,7 +319,7 @@ public final class ShowQueriesRewrite
 
                 Set<String> allowedSchemas = listSchemas(session, metadata, accessControl, catalogName);
                 for (String schema : allowedSchemas) {
-                    accessControl.checkCanShowTables(session.toSecurityContext(), new CatalogSchemaName(catalogName, schema));
+                    accessControl.checkCanShowTables(session.toSecurityContext(), caseSensitiveCatalogSchemaName(catalogName, schema));
                 }
             }
 
@@ -451,9 +452,9 @@ public final class ShowQueriesRewrite
         @Override
         protected Node visitShowColumns(ShowColumns showColumns, Void context)
         {
-            QualifiedObjectName tableName = createQualifiedObjectName(session, showColumns, showColumns.getTable());
+            QualifiedObjectName tableName = createQualifiedObjectName(session, showColumns, showColumns.getTable(), metadata);
             getRequiredCatalogHandle(metadata, session, showColumns, tableName.catalogName());
-            if (!metadata.schemaExists(session, new CatalogSchemaName(tableName.catalogName(), tableName.schemaName()))) {
+            if (!metadata.schemaExists(session, caseSensitiveCatalogSchemaName(tableName.catalogName(), tableName.schemaName()))) {
                 throw semanticException(SCHEMA_NOT_FOUND, showColumns, "Schema '%s' does not exist", tableName.schemaName());
             }
 
@@ -625,7 +626,7 @@ public final class ShowQueriesRewrite
 
         private Query showCreateTable(ShowCreate node)
         {
-            QualifiedObjectName objectName = createQualifiedObjectName(session, node, node.getName());
+            QualifiedObjectName objectName = createQualifiedObjectName(session, node, node.getName(), metadata);
 
             if (metadata.isMaterializedView(session, objectName)) {
                 throw semanticException(NOT_SUPPORTED, node, "Relation '%s' is a materialized view, not a table", objectName);
@@ -669,12 +670,24 @@ public final class ShowQueriesRewrite
 
             CreateTable createTable = new CreateTable(
                     node.getLocation().orElseThrow(),
-                    QualifiedName.of(targetTableName.catalogName(), targetTableName.schemaName(), targetTableName.objectName()),
+                    QualifiedName.of(ImmutableList.of(
+                            new Identifier(targetTableName.catalogName()),
+                            caseKeepingIdentifier(targetTableName.schemaName()),
+                            caseKeepingIdentifier(targetTableName.objectName()))),
                     columns,
                     FAIL,
                     propertyNodes,
                     connectorTableMetadata.getComment());
             return singleValueQuery("Create Table", formatSql(createTable).trim());
+        }
+
+        private static Identifier caseKeepingIdentifier(String name)
+        {
+            // Quoting keeps the case when the generated statement is parsed again
+            if (!name.equals(name.toLowerCase(ENGLISH))) {
+                return new Identifier(name, true);
+            }
+            return new Identifier(name);
         }
 
         private Expression parseDefaultColumnValueExpression(String expression, QualifiedObjectName name, Node node)
@@ -689,7 +702,7 @@ public final class ShowQueriesRewrite
 
         private Query showCreateSchema(ShowCreate node)
         {
-            CatalogSchemaName schemaName = createCatalogSchemaName(session, node, Optional.of(node.getName()));
+            CatalogSchemaName schemaName = createCatalogSchemaName(session, node, Optional.of(node.getName()), metadata);
 
             if (!metadata.schemaExists(session, schemaName)) {
                 throw semanticException(SCHEMA_NOT_FOUND, node, "Schema '%s' does not exist", schemaName);
@@ -700,7 +713,9 @@ public final class ShowQueriesRewrite
             Map<String, Object> properties = metadata.getSchemaProperties(session, schemaName);
             CatalogHandle catalogHandle = getRequiredCatalogHandle(metadata, session, node, schemaName.getCatalogName());
             Collection<PropertyMetadata<?>> allTableProperties = schemaPropertyManager.getAllProperties(catalogHandle);
-            QualifiedName qualifiedSchemaName = QualifiedName.of(schemaName.getCatalogName(), schemaName.getSchemaName());
+            QualifiedName qualifiedSchemaName = QualifiedName.of(ImmutableList.of(
+                    new Identifier(schemaName.getCatalogName()),
+                    caseKeepingIdentifier(schemaName.getSchemaName())));
             List<Property> propertyNodes = toSqlProperties("schema " + qualifiedSchemaName, INVALID_SCHEMA_PROPERTY, properties, allTableProperties);
 
             Optional<PrincipalSpecification> owner = metadata.getSchemaOwner(session, schemaName).map(MetadataUtil::createPrincipal);

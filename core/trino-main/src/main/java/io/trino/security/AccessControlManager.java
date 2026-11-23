@@ -90,6 +90,7 @@ import static io.airlift.configuration.ConfigurationLoader.loadPropertiesFrom;
 import static io.trino.spi.StandardErrorCode.INVALID_COLUMN_MASK;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.trino.spi.StandardErrorCode.SERVER_STARTING_UP;
+import static io.trino.spi.connector.SchemaTableName.caseSensitiveSchemaTableName;
 import static io.trino.spi.security.AccessDeniedException.denyCatalogAccess;
 import static io.trino.spi.security.AccessDeniedException.denySetEntityAuthorization;
 import static java.lang.String.format;
@@ -1530,9 +1531,9 @@ public class AccessControlManager
         catalogAuthorizationCheck(name.get(0), securityContext, (control, context) -> {
             switch (ownedKind) {
                 case "SCHEMA" -> control.checkCanSetSchemaAuthorization(context, name.get(1), principal);
-                case "TABLE" -> control.checkCanSetTableAuthorization(context, new SchemaTableName(name.get(1), name.get(2)), principal);
-                case "VIEW" -> control.checkCanSetViewAuthorization(context, new SchemaTableName(name.get(1), name.get(2)), principal);
-                case "MATERIALIZED VIEW" -> control.checkCanSetMaterializedViewAuthorization(context, new SchemaTableName(name.get(1), name.get(2)), principal);
+                case "TABLE" -> control.checkCanSetTableAuthorization(context, caseSensitiveSchemaTableName(name.get(1), name.get(2)), principal);
+                case "VIEW" -> control.checkCanSetViewAuthorization(context, caseSensitiveSchemaTableName(name.get(1), name.get(2)), principal);
+                case "MATERIALIZED VIEW" -> control.checkCanSetMaterializedViewAuthorization(context, caseSensitiveSchemaTableName(name.get(1), name.get(2)), principal);
                 default -> denySetEntityAuthorization(new EntityKindAndName(ownedKind, name), principal);
             }
         });

@@ -46,6 +46,8 @@ import static io.trino.spi.StandardErrorCode.MISSING_SCHEMA_NAME;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.trino.spi.StandardErrorCode.ROLE_NOT_FOUND;
 import static io.trino.spi.StandardErrorCode.SYNTAX_ERROR;
+import static io.trino.spi.connector.CatalogSchemaName.caseSensitiveCatalogSchemaName;
+import static io.trino.spi.connector.ConnectorCapabilities.CASE_SENSITIVE_SCHEMA_AND_TABLE_NAMES;
 import static io.trino.spi.security.PrincipalType.ROLE;
 import static io.trino.spi.security.PrincipalType.USER;
 import static io.trino.sql.analyzer.SemanticExceptions.semanticException;
@@ -56,15 +58,6 @@ import static java.util.Objects.requireNonNull;
 public final class MetadataUtil
 {
     private MetadataUtil() {}
-
-    public static void checkTableName(String catalogName, Optional<String> schemaName, Optional<String> tableName)
-    {
-        checkCatalogName(catalogName);
-        schemaName.ifPresent(name -> checkLowerCase(name, "schemaName"));
-        tableName.ifPresent(name -> checkLowerCase(name, "tableName"));
-
-        checkArgument(schemaName.isPresent() || tableName.isEmpty(), "tableName specified but schemaName is missing");
-    }
 
     public static String checkCatalogName(String catalogName)
     {
@@ -79,13 +72,6 @@ public final class MetadataUtil
     public static String checkTableName(String tableName)
     {
         return checkLowerCase(tableName, "tableName");
-    }
-
-    public static void checkObjectName(String catalogName, String schemaName, String objectName)
-    {
-        checkLowerCase(catalogName, "catalogName");
-        checkLowerCase(schemaName, "schemaName");
-        checkLowerCase(objectName, "objectName");
     }
 
     public static String checkLowerCase(String value, String name)
@@ -186,6 +172,23 @@ public final class MetadataUtil
         return new CatalogSchemaName(catalogName, schemaName);
     }
 
+    /**
+     * Like {@link #createCatalogSchemaName(Session, Node, Optional)}, but keeps the case of a quoted
+     * schema name when the catalog has case-sensitive schema and table names.
+     */
+    public static CatalogSchemaName createCatalogSchemaName(Session session, Node node, Optional<QualifiedName> schema, Metadata metadata)
+    {
+        CatalogSchemaName schemaName = createCatalogSchemaName(session, node, schema);
+        if (schema.isEmpty()) {
+            return schemaName;
+        }
+        Identifier schemaIdentifier = schema.get().getOriginalParts().getLast();
+        if (!keepsCase(schemaIdentifier) || !hasCaseSensitiveNames(metadata, session, schemaName.getCatalogName())) {
+            return schemaName;
+        }
+        return caseSensitiveCatalogSchemaName(schemaName.getCatalogName(), schemaIdentifier.getValue());
+    }
+
     public static QualifiedObjectName createQualifiedObjectName(Session session, Node node, QualifiedName name)
     {
         requireNonNull(session, "session is null");
@@ -202,6 +205,57 @@ public final class MetadataUtil
                 semanticException(MISSING_CATALOG_NAME, node, "Catalog must be specified when session catalog is not set"));
 
         return new QualifiedObjectName(catalogName, schemaName, objectName);
+    }
+
+    /**
+     * Like {@link #createQualifiedObjectName(Session, Node, QualifiedName)}, but keeps the case of quoted
+     * schema and table names when the catalog has case-sensitive schema and table names.
+     */
+    public static QualifiedObjectName createQualifiedObjectName(Session session, Node node, QualifiedName name, Metadata metadata)
+    {
+        return keepQuotedNameCase(session, createQualifiedObjectName(session, node, name), name, metadata);
+    }
+
+    /**
+     * Returns {@code objectName}, which was resolved from {@code name}, with the case of the quoted schema
+     * and table parts of {@code name} kept when the catalog has case-sensitive schema and table names.
+     */
+    public static QualifiedObjectName keepQuotedNameCase(Session session, QualifiedObjectName objectName, QualifiedName name, Metadata metadata)
+    {
+        List<Identifier> parts = name.getOriginalParts().reversed();
+        boolean keepTableCase = keepsCase(parts.get(0));
+        boolean keepSchemaCase = parts.size() > 1 && keepsCase(parts.get(1));
+        if ((!keepTableCase && !keepSchemaCase) || !hasCaseSensitiveNames(metadata, session, objectName.catalogName())) {
+            return objectName;
+        }
+        return new QualifiedObjectName(
+                objectName.catalogName(),
+                keepSchemaCase ? parts.get(1).getValue() : objectName.schemaName(),
+                keepTableCase ? parts.get(0).getValue() : objectName.objectName());
+    }
+
+    public static boolean hasCaseSensitiveNames(Metadata metadata, Session session, String catalogName)
+    {
+        return metadata.getCatalogHandle(session, catalogName)
+                .map(catalogHandle -> metadata.getConnectorCapabilities(session, catalogHandle).contains(CASE_SENSITIVE_SCHEMA_AND_TABLE_NAMES))
+                .orElse(false);
+    }
+
+    /**
+     * Returns the schema or table name for {@code identifier}: lowercased, except that a quoted name keeps
+     * its case when {@code caseSensitiveNames} is set.
+     */
+    public static String canonicalName(Identifier identifier, boolean caseSensitiveNames)
+    {
+        if (caseSensitiveNames && keepsCase(identifier)) {
+            return identifier.getValue();
+        }
+        return identifier.getValue().toLowerCase(ENGLISH);
+    }
+
+    private static boolean keepsCase(Identifier identifier)
+    {
+        return identifier.isDelimited() && !identifier.getValue().equals(identifier.getValue().toLowerCase(ENGLISH));
     }
 
     public static EntityKindAndName createEntityKindAndName(String entityKind, QualifiedName name)

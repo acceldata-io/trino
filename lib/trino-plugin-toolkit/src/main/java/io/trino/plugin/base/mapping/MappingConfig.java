@@ -14,9 +14,11 @@
 package io.trino.plugin.base.mapping;
 
 import io.airlift.configuration.Config;
+import io.airlift.configuration.ConfigDescription;
 import io.airlift.configuration.validation.FileExists;
 import io.airlift.units.Duration;
 import io.airlift.units.MinDuration;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.Optional;
@@ -26,11 +28,13 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 public class MappingConfig
 {
     public static final String CASE_INSENSITIVE_NAME_MATCHING = "case-insensitive-name-matching";
+    public static final String CASE_SENSITIVE_NAME_MATCHING = "case-sensitive-name-matching";
 
     private boolean caseInsensitiveNameMatching;
     private Duration caseInsensitiveNameMatchingCacheTtl = new Duration(1, MINUTES);
     private String configFile;
     private Duration refreshPeriod;
+    private boolean caseSensitiveNameMatching;
 
     public boolean isCaseInsensitiveNameMatching()
     {
@@ -80,5 +84,24 @@ public class MappingConfig
     {
         this.refreshPeriod = refreshPeriod;
         return this;
+    }
+
+    public boolean isCaseSensitiveNameMatching()
+    {
+        return caseSensitiveNameMatching;
+    }
+
+    @Config(CASE_SENSITIVE_NAME_MATCHING)
+    @ConfigDescription("Keep the case of quoted schema and table names, and list schema and table names with their remote case")
+    public MappingConfig setCaseSensitiveNameMatching(boolean caseSensitiveNameMatching)
+    {
+        this.caseSensitiveNameMatching = caseSensitiveNameMatching;
+        return this;
+    }
+
+    @AssertTrue(message = "case-sensitive-name-matching cannot be combined with case-insensitive-name-matching or case-insensitive-name-matching.config-file")
+    public boolean isCaseSensitiveNameMatchingValid()
+    {
+        return !caseSensitiveNameMatching || (!caseInsensitiveNameMatching && configFile == null);
     }
 }

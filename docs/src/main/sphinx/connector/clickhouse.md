@@ -93,6 +93,42 @@ configured connector to create a catalog named `sales`.
 ```{include} jdbc-case-insensitive-matching.fragment
 ```
 
+### Case-sensitive schema and table names
+
+ClickHouse database and table names are case-sensitive, so one database can
+contain both `customers` and `Customers`. Set `case-sensitive-name-matching` to
+`true` in the catalog properties file to use such names in Trino:
+
+```properties
+case-sensitive-name-matching=true
+```
+
+With this property:
+
+- A quoted name keeps its case. `"Customers"` refers to the ClickHouse table
+  `Customers`, while `customers`, `"customers"`, and the unquoted `Customers`
+  refer to `customers`. Database names work the same way.
+- `SHOW SCHEMAS`, `SHOW TABLES`, `information_schema`, and the metadata of the
+  JDBC driver list schema and table names with their exact case.
+- Statements such as `DESCRIBE`, `SHOW CREATE TABLE`, `INSERT`,
+  `CREATE TABLE`, `ALTER TABLE`, and `DROP TABLE` act on the table with the
+  exact quoted name.
+
+The following limitations apply:
+
+- Column names are always lowercase.
+- `USE` and the default schema of a client session are lowercase. Qualify table
+  names with a schema name that contains uppercase letters instead.
+- The property cannot be combined with `case-insensitive-name-matching` or
+  `case-insensitive-name-matching.config-file`.
+- Access control receives the exact names. Patterns in file-based access control
+  are case-sensitive regular expressions. With Apache Ranger, a schema or table
+  name that contains uppercase letters is sent with a leading double quote, for
+  example `"Customers`, so use that form in policy resources. To tell apart two
+  names that both contain uppercase letters, such as `Customers` and
+  `CUSTOMERS`, set `quotedCaseSensitive` for the schema and table resources of
+  the Trino service definition in Ranger.
+
 ## Querying ClickHouse
 
 The ClickHouse connector provides a schema for every ClickHouse *database*.

@@ -26,12 +26,15 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static io.trino.metadata.MetadataUtil.checkObjectName;
+import static io.trino.metadata.MetadataUtil.checkCatalogName;
+import static io.trino.spi.connector.SchemaTableName.caseSensitiveSchemaTableName;
+import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 
 public record QualifiedObjectName(String catalogName, String schemaName, String objectName)
 {
     private static final Pattern UNQUOTED_COMPONENT = Pattern.compile("[a-zA-Z0-9_]+");
+    private static final Pattern LOWERCASE_COMPONENT = Pattern.compile("[a-z0-9_]+");
     private static final String COMPONENT = UNQUOTED_COMPONENT.pattern() + "|\"([^\"]|\"\")*\"";
     private static final Pattern PATTERN = Pattern.compile("(?<catalog>" + COMPONENT + ")\\.(?<schema>" + COMPONENT + ")\\.(?<table>" + COMPONENT + ")");
 
@@ -46,17 +49,19 @@ public record QualifiedObjectName(String catalogName, String schemaName, String 
 
     public QualifiedObjectName
     {
-        checkObjectName(catalogName, schemaName, objectName);
+        checkCatalogName(catalogName);
+        requireNonNull(schemaName, "schemaName is null");
+        requireNonNull(objectName, "objectName is null");
     }
 
     public SchemaTableName asSchemaTableName()
     {
-        return new SchemaTableName(schemaName, objectName);
+        return caseSensitiveSchemaTableName(schemaName, objectName);
     }
 
     public CatalogSchemaTableName asCatalogSchemaTableName()
     {
-        return new CatalogSchemaTableName(catalogName, schemaName, objectName);
+        return new CatalogSchemaTableName(catalogName, asSchemaTableName());
     }
 
     public SchemaRoutineName asSchemaRoutineName()
@@ -94,7 +99,7 @@ public record QualifiedObjectName(String catalogName, String schemaName, String 
     private static String unquoteIfNeeded(String name)
     {
         if (name.isEmpty() || name.charAt(0) != '"') {
-            return name;
+            return name.toLowerCase(ENGLISH);
         }
         checkArgument(name.charAt(name.length() - 1) == '"', "Invalid name: [%s]", name);
         return name.substring(1, name.length() - 1).replace("\"\"", "\"");
@@ -102,7 +107,7 @@ public record QualifiedObjectName(String catalogName, String schemaName, String 
 
     private static String quoteIfNeeded(String name)
     {
-        if (UNQUOTED_COMPONENT.matcher(name).matches()) {
+        if (LOWERCASE_COMPONENT.matcher(name).matches()) {
             return name;
         }
         return "\"" + name.replace("\"", "\"\"") + "\"";

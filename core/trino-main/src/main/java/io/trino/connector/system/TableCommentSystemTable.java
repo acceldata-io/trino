@@ -50,6 +50,7 @@ import static io.trino.connector.system.jdbc.FilterUtil.tablePrefix;
 import static io.trino.connector.system.jdbc.FilterUtil.tryGetSingleVarcharValue;
 import static io.trino.metadata.MetadataListing.listCatalogNames;
 import static io.trino.metadata.MetadataUtil.TableMetadataBuilder.tableMetadataBuilder;
+import static io.trino.metadata.MetadataUtil.hasCaseSensitiveNames;
 import static io.trino.spi.connector.SystemTable.Distribution.SINGLE_COORDINATOR;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
@@ -100,7 +101,7 @@ public class TableCommentSystemTable
         Domain schemaDomain = constraint.getDomain(1, VARCHAR);
         Domain tableDomain = constraint.getDomain(2, VARCHAR);
 
-        if (isImpossibleObjectName(catalogDomain) || isImpossibleObjectName(schemaDomain) || isImpossibleObjectName(tableDomain)) {
+        if (isImpossibleObjectName(catalogDomain)) {
             return table.build().cursor();
         }
 
@@ -109,12 +110,16 @@ public class TableCommentSystemTable
         Session session = ((FullConnectorSession) connectorSession).getSession();
 
         for (String catalog : listCatalogNames(session, metadata, accessControl, catalogDomain)) {
+            boolean caseSensitiveNames = hasCaseSensitiveNames(metadata, session, catalog);
+            if (isImpossibleObjectName(schemaDomain, caseSensitiveNames) || isImpossibleObjectName(tableDomain, caseSensitiveNames)) {
+                continue;
+            }
             // TODO A connector may be able to pull information from multiple schemas at once, so pass the schema filter to the connector instead.
             // TODO Support LIKE predicates on schema name (or any other functional predicates), so pass the schema filter as Constraint-like to the connector.
             if (schemaDomain.isNullableDiscreteSet()) {
                 for (Object slice : schemaDomain.getNullableDiscreteSet().getNonNullValues()) {
                     String schemaName = ((Slice) slice).toStringUtf8();
-                    if (isImpossibleObjectName(schemaName)) {
+                    if (isImpossibleObjectName(schemaName, caseSensitiveNames)) {
                         continue;
                     }
                     addTableCommentForCatalog(session, table, catalog, tablePrefix(catalog, Optional.of(schemaName), tableFilter));
