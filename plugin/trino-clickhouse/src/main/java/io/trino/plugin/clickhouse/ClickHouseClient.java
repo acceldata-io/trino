@@ -702,7 +702,8 @@ public class ClickHouseClient
                 if (isMapStringAsVarchar(session)) {
                     return Optional.of(ColumnMapping.sliceMapping(
                             createUnboundedVarcharType(),
-                            varcharReadFunction(createUnboundedVarcharType()),
+                            // ClickHouse strings are arbitrary bytes, and getString would replace invalid UTF-8
+                            (resultSet, columnIndex) -> wrappedBuffer(resultSet.getBytes(columnIndex)),
                             varcharWriteFunction(),
                             FULL_PUSHDOWN));
                 }

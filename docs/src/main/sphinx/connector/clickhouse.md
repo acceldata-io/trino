@@ -219,11 +219,13 @@ to the following table:
 * - `FixedString`
   - `VARBINARY`
   - Enabling `clickhouse.map-string-as-varchar` config property changes the
-    mapping to `VARCHAR`
+    mapping to `VARCHAR`. The bytes are read unchanged, including bytes that
+    are not valid UTF-8.
 * - `String`
   - `VARBINARY`
   - Enabling `clickhouse.map-string-as-varchar` config property changes the
-    mapping to `VARCHAR`
+    mapping to `VARCHAR`. The bytes are read unchanged, including bytes that
+    are not valid UTF-8.
 * - `Date`
   - `DATE`
   -
