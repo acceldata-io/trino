@@ -40,6 +40,7 @@ import io.trino.plugin.jdbc.ColumnMapping;
 import io.trino.plugin.jdbc.ConnectionFactory;
 import io.trino.plugin.jdbc.JdbcColumnHandle;
 import io.trino.plugin.jdbc.JdbcExpression;
+import io.trino.plugin.jdbc.JdbcOutputTableHandle;
 import io.trino.plugin.jdbc.JdbcSortItem;
 import io.trino.plugin.jdbc.JdbcTableHandle;
 import io.trino.plugin.jdbc.JdbcTypeHandle;
@@ -50,6 +51,7 @@ import io.trino.plugin.jdbc.ObjectWriteFunction;
 import io.trino.plugin.jdbc.QueryBuilder;
 import io.trino.plugin.jdbc.RemoteTableName;
 import io.trino.plugin.jdbc.SliceWriteFunction;
+import io.trino.plugin.jdbc.WriteFunction;
 import io.trino.plugin.jdbc.WriteMapping;
 import io.trino.plugin.jdbc.aggregation.ImplementAvgFloatingPoint;
 import io.trino.plugin.jdbc.aggregation.ImplementCorr;
@@ -420,6 +422,41 @@ public class ClickHouseClient
         catch (SQLException e) {
             throw new TrinoException(JDBC_ERROR, e);
         }
+    }
+
+    @Override
+    public String buildInsertSql(JdbcOutputTableHandle handle, List<WriteFunction> columnWriters)
+    {
+        // The JDBC driver prepares INSERT ... VALUES (?, ...) by first running SELECT <columns> FROM <table> WHERE 0
+        // to learn the column types, which needs the SELECT privilege. An INSERT from input() declares the types
+        // in the statement instead. The driver rejects ? placeholders in such a statement.
+        List<String> columnNames = handle.getColumnNames();
+        checkArgument(columnNames.size() == columnWriters.size(), "handle and columnWriters mismatch: %s, %s", handle, columnWriters);
+        Optional<List<JdbcTypeHandle>> columnTypes = handle.getJdbcColumnTypes();
+        if (handle.getPageSinkIdColumnName().isPresent() ||
+                columnTypes.isEmpty() ||
+                columnTypes.get().stream().anyMatch(type -> type.jdbcTypeName().isEmpty() || type.jdbcTypeName().get().contains("?"))) {
+            return super.buildInsertSql(handle, columnWriters);
+        }
+
+        ImmutableList.Builder<String> inputColumns = ImmutableList.builder();
+        ImmutableList.Builder<String> selectColumns = ImmutableList.builder();
+        for (int i = 0; i < columnNames.size(); i++) {
+            String inputColumn = "_c" + (i + 1);
+            inputColumns.add(inputColumn + " " + toTransferType(columnTypes.get().get(i).jdbcTypeName().orElseThrow()));
+            selectColumns.add(inputColumn);
+        }
+        return format(
+                "INSERT INTO %s (%s) SELECT %s FROM input(%s)",
+                quoted(
+                        handle.getRemoteTableName().getCatalogName().orElse(null),
+                        handle.getRemoteTableName().getSchemaName().orElse(null),
+                        handle.getTemporaryTableName().orElseGet(() -> handle.getRemoteTableName().getTableName())),
+                columnNames.stream()
+                        .map(this::quoted)
+                        .collect(joining(", ")),
+                join(", ", selectColumns.build()),
+                clickhouseVarcharLiteral(join(", ", inputColumns.build())));
     }
 
     @Override
