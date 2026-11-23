@@ -262,9 +262,32 @@ to the following table:
   - `array(T)`
   - Element type `T` is mapped according to the same type mapping rules.
     Nested arrays and nullable elements via `Array(Nullable(T))` are supported.
+* - `Map(K, V)`
+  - `map(K, V)`
+  - Key and value types are mapped according to the same type mapping rules.
+    For a duplicate key, the last value is returned.
+* - `Tuple(T1, T2, ...)`
+  - `row(T1, T2, ...)`
+  - Field names of a named tuple are kept.
+* - `Point`
+  - `row(x double, y double)`
+  -
+* - `Ring`, `LineString`
+  - `array(row(x double, y double))`
+  -
+* - `Polygon`, `MultiLineString`
+  - `array(array(row(x double, y double)))`
+  -
+* - `MultiPolygon`
+  - `array(array(array(row(x double, y double))))`
+  -
 :::
 
 No other types are supported.
+
+Values can be inserted into existing `Map`, `Tuple`, and geo columns. Strings
+nested in `Map` and `Tuple` values are decoded as UTF-8 by the ClickHouse JDBC
+driver.
 
 ### Trino type to ClickHouse type mapping
 

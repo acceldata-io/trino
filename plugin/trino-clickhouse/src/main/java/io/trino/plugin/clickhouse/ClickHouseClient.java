@@ -66,6 +66,10 @@ import io.trino.plugin.jdbc.logging.RemoteQueryModifier;
 import io.trino.spi.TrinoException;
 import io.trino.spi.block.Block;
 import io.trino.spi.block.BlockBuilder;
+import io.trino.spi.block.MapBlockBuilder;
+import io.trino.spi.block.RowBlockBuilder;
+import io.trino.spi.block.SqlMap;
+import io.trino.spi.block.SqlRow;
 import io.trino.spi.connector.AggregateFunction;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ColumnMetadata;
@@ -81,13 +85,16 @@ import io.trino.spi.type.Decimals;
 import io.trino.spi.type.Int128;
 import io.trino.spi.type.LongTimestamp;
 import io.trino.spi.type.LongTimestampWithTimeZone;
+import io.trino.spi.type.MapType;
 import io.trino.spi.type.NumberType;
+import io.trino.spi.type.RowType;
 import io.trino.spi.type.StandardTypes;
 import io.trino.spi.type.TimeZoneKey;
 import io.trino.spi.type.TimestampType;
 import io.trino.spi.type.TimestampWithTimeZoneType;
 import io.trino.spi.type.Type;
 import io.trino.spi.type.TypeManager;
+import io.trino.spi.type.TypeOperators;
 import io.trino.spi.type.TypeSignature;
 import io.trino.spi.type.VarbinaryType;
 import io.trino.spi.type.VarcharType;
@@ -114,7 +121,9 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -189,6 +198,7 @@ import static io.trino.plugin.jdbc.StandardColumnMappings.varcharWriteFunction;
 import static io.trino.plugin.jdbc.TypeHandlingJdbcSessionProperties.getUnsupportedTypeHandling;
 import static io.trino.plugin.jdbc.UnsupportedTypeHandling.CONVERT_TO_VARCHAR;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
+import static io.trino.spi.StandardErrorCode.INVALID_ARGUMENTS;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.trino.spi.StandardErrorCode.SCHEMA_NOT_EMPTY;
 import static io.trino.spi.connector.ConnectorMetadata.MODIFYING_ROWS_MESSAGE;
@@ -248,8 +258,15 @@ public class ClickHouseClient
     private static final Pattern ZONED_DATETIME64 = Pattern.compile("DateTime64\\(\\s*(\\d+)\\s*,\\s*'([^']*)'\\s*\\)");
     private static final DateTimeFormatter UTC_DATETIME64_FORMATTER = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSSSSSSSS").withZone(UTC);
 
+    private static final Pattern QUOTED_LITERAL = Pattern.compile("'(?:[^'\\\\]|\\\\.)*'");
+    private static final Pattern MULTI_LINE_STRING = Pattern.compile("\\bMultiLineString\\b");
+    private static final Pattern LINE_STRING = Pattern.compile("\\bLineString\\b");
+
+    private static final RowType GEO_POINT = RowType.from(ImmutableList.of(RowType.field("x", DOUBLE), RowType.field("y", DOUBLE)));
+
     private final ConnectorExpressionRewriter<ParameterizedExpression> connectorExpressionRewriter;
     private final AggregateFunctionRewriter<JdbcExpression, ?> aggregateFunctionRewriter;
+    private final TypeOperators typeOperators;
     private final Type uuidType;
     private final Type ipAddressType;
     private final AtomicReference<ClickHouseVersionUtils> clickHouseVersion = new AtomicReference<>();
@@ -264,6 +281,7 @@ public class ClickHouseClient
             RemoteQueryModifier queryModifier)
     {
         super("\"", connectionFactory, queryBuilder, config.getJdbcTypesMappedToVarchar(), identifierMapping, queryModifier, false);
+        this.typeOperators = typeManager.getTypeOperators();
         this.uuidType = typeManager.getType(new TypeSignature(StandardTypes.UUID));
         this.ipAddressType = typeManager.getType(new TypeSignature(StandardTypes.IPADDRESS));
         JdbcTypeHandle bigintTypeHandle = new JdbcTypeHandle(Types.BIGINT, Optional.of("bigint"), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
@@ -295,8 +313,25 @@ public class ClickHouseClient
     @Override
     public Optional<JdbcExpression> implementAggregation(ConnectorSession session, AggregateFunction aggregate, Map<String, ColumnHandle> assignments)
     {
+        if (aggregate.getArguments().stream().anyMatch(argument -> isNestedType(argument.getType()))) {
+            return Optional.empty();
+        }
         // TODO support complex ConnectorExpressions
         return aggregateFunctionRewriter.rewrite(session, aggregate, assignments);
+    }
+
+    @Override
+    public boolean supportsAggregationPushdown(ConnectorSession session, JdbcTableHandle table, List<AggregateFunction> aggregates, Map<String, ColumnHandle> assignments, List<List<ColumnHandle>> groupingSets)
+    {
+        // ClickHouse compares and orders Array, Map and Tuple values differently from Trino, and keeps duplicate map keys
+        return groupingSets.stream()
+                .flatMap(List::stream)
+                .noneMatch(column -> isNestedType(((JdbcColumnHandle) column).getColumnType()));
+    }
+
+    private static boolean isNestedType(Type type)
+    {
+        return type instanceof ArrayType || type instanceof MapType || type instanceof RowType;
     }
 
     @Override
@@ -704,6 +739,9 @@ public class ClickHouseClient
                 yield Optional.of(varbinaryColumnMapping());
             }
             case UUID -> Optional.of(uuidColumnMapping());
+            case Map -> mapColumnMapping(session, connection, column);
+            case Tuple -> rowColumnMapping(session, connection, column);
+            case Point, Ring, LineString, Polygon, MultiLineString, MultiPolygon -> Optional.of(geoColumnMapping(geoType(columnDataType)));
             default -> Optional.empty();
         };
         if (clickHouseDataTypeMapping.isPresent()) {
@@ -1144,18 +1182,38 @@ public class ClickHouseClient
     }
 
     // The JDBC driver converts DateTime64 values through local date-time in the column time zone, which is ambiguous
-    // when clocks are set back, so zoned DateTime64 columns are read and written as UTC values.
+    // when clocks are set back, so zoned DateTime64 columns are read and written as UTC values. The driver also cannot
+    // read or write LineString and MultiLineString, which ClickHouse stores as Point arrays.
     static String toTransferType(String clickHouseType)
     {
+        String type = replaceLineStringTypes(clickHouseType);
         String nullablePrefix = "Nullable(";
-        boolean nullable = clickHouseType.startsWith(nullablePrefix) && clickHouseType.endsWith(")");
-        String type = nullable ? clickHouseType.substring(nullablePrefix.length(), clickHouseType.length() - 1) : clickHouseType;
-        Matcher matcher = ZONED_DATETIME64.matcher(type);
+        boolean nullable = type.startsWith(nullablePrefix) && type.endsWith(")");
+        String baseType = nullable ? type.substring(nullablePrefix.length(), type.length() - 1) : type;
+        Matcher matcher = ZONED_DATETIME64.matcher(baseType);
         if (!matcher.matches() || matcher.group(2).equals("UTC")) {
-            return clickHouseType;
+            return type;
         }
         String utcType = "DateTime64(%s, 'UTC')".formatted(matcher.group(1));
         return nullable ? nullablePrefix + utcType + ")" : utcType;
+    }
+
+    private static String replaceLineStringTypes(String type)
+    {
+        StringBuilder result = new StringBuilder();
+        Matcher quoted = QUOTED_LITERAL.matcher(type);
+        int position = 0;
+        while (quoted.find()) {
+            result.append(replaceLineStrings(type.substring(position, quoted.start()))).append(quoted.group());
+            position = quoted.end();
+        }
+        return result.append(replaceLineStrings(type.substring(position))).toString();
+    }
+
+    private static String replaceLineStrings(String text)
+    {
+        String replaced = MULTI_LINE_STRING.matcher(text).replaceAll("Array(Array(Point))");
+        return LINE_STRING.matcher(replaced).replaceAll("Array(Point)");
     }
 
     private ColumnMapping ipAddressColumnMapping(String clickhouseType)
@@ -1236,23 +1294,18 @@ public class ClickHouseClient
         }
         int arrayLevel = column.getArrayNestedLevel();
 
-        JdbcTypeHandle baseElementTypeHandle = new JdbcTypeHandle(
-                JdbcTypeMapping.getDefaultMapping().toSqlType(baseColumn, null),
-                Optional.of(baseColumn.getOriginalTypeName()),
-                baseColumn.getPrecision() > 0 ? Optional.of(baseColumn.getPrecision()) : Optional.empty(),
-                baseColumn.getPrecision() > 0 ? Optional.of(baseColumn.getScale()) : Optional.empty(),
-                Optional.empty(),
-                Optional.empty());
-
-        Optional<ColumnMapping> baseElementMapping = toColumnMapping(session, connection, baseElementTypeHandle);
+        Optional<ColumnMapping> baseElementMapping = toColumnMapping(session, connection, toJdbcTypeHandle(baseColumn));
         if (baseElementMapping.isEmpty()) {
             return Optional.empty();
         }
 
         Type elementType = baseElementMapping.get().getType();
         // Use Nullable element type for createArrayOf so null values are stored correctly;
-        // createArrayOf("Float64", null) would silently convert null to 0.0
-        String elementWriteTypeName = "Nullable(" + baseColumn.getOriginalTypeName() + ")";
+        // createArrayOf("Float64", null) would silently convert null to 0.0.
+        // ClickHouse does not allow Nullable around Tuple, Map and geo types.
+        String elementWriteTypeName = elementType instanceof RowType || elementType instanceof MapType || elementType instanceof ArrayType
+                ? baseColumn.getOriginalTypeName()
+                : "Nullable(" + baseColumn.getOriginalTypeName() + ")";
         ArrayType arrayType = new ArrayType(elementType);
         ColumnMapping arrayColumnMapping = arrayColumnMapping(arrayType, elementWriteTypeName);
         for (int i = 1; i < arrayLevel; i++) {
@@ -1270,6 +1323,129 @@ public class ClickHouseClient
                 arrayReadFunction(arrayType.getElementType()),
                 arrayWriteFunction(arrayType.getElementType(), baseElementJdbcTypeName),
                 DISABLE_PUSHDOWN);
+    }
+
+    private Optional<ColumnMapping> mapColumnMapping(ConnectorSession session, Connection connection, ClickHouseColumn column)
+    {
+        Optional<Type> keyType = nestedType(session, connection, column.getKeyInfo());
+        Optional<Type> valueType = nestedType(session, connection, column.getValueInfo());
+        if (keyType.isEmpty() || valueType.isEmpty() || !keyType.get().isComparable()) {
+            return Optional.empty();
+        }
+        return Optional.of(nestedColumnMapping(new MapType(keyType.get(), valueType.get(), typeOperators)));
+    }
+
+    private Optional<ColumnMapping> rowColumnMapping(ConnectorSession session, Connection connection, ClickHouseColumn column)
+    {
+        ImmutableList.Builder<RowType.Field> fields = ImmutableList.builder();
+        for (ClickHouseColumn field : column.getNestedColumns()) {
+            Optional<Type> fieldType = nestedType(session, connection, field);
+            if (fieldType.isEmpty()) {
+                return Optional.empty();
+            }
+            fields.add(field.getColumnName().isEmpty() ? RowType.field(fieldType.get()) : RowType.field(field.getColumnName(), fieldType.get()));
+        }
+        return Optional.of(nestedColumnMapping(RowType.from(fields.build())));
+    }
+
+    private Optional<Type> nestedType(ConnectorSession session, Connection connection, ClickHouseColumn column)
+    {
+        return toColumnMapping(session, connection, toJdbcTypeHandle(column)).map(ColumnMapping::getType);
+    }
+
+    private static JdbcTypeHandle toJdbcTypeHandle(ClickHouseColumn column)
+    {
+        return new JdbcTypeHandle(
+                JdbcTypeMapping.getDefaultMapping().toSqlType(column, null),
+                Optional.of(column.getOriginalTypeName()),
+                column.getPrecision() > 0 ? Optional.of(column.getPrecision()) : Optional.empty(),
+                column.getPrecision() > 0 ? Optional.of(column.getScale()) : Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
+    }
+
+    private static Type geoType(ClickHouseDataType dataType)
+    {
+        return switch (dataType) {
+            case Point -> GEO_POINT;
+            case Ring, LineString -> new ArrayType(GEO_POINT);
+            case Polygon, MultiLineString -> new ArrayType(new ArrayType(GEO_POINT));
+            case MultiPolygon -> new ArrayType(new ArrayType(new ArrayType(GEO_POINT)));
+            default -> throw new IllegalArgumentException("Unexpected geo type: " + dataType);
+        };
+    }
+
+    private ColumnMapping nestedColumnMapping(Type type)
+    {
+        return ColumnMapping.objectMapping(
+                type,
+                nestedReadFunction(type),
+                objectWriteFunction(type, (block, position) -> toJdbcObjectValue(type, block, position)),
+                DISABLE_PUSHDOWN);
+    }
+
+    private ColumnMapping geoColumnMapping(Type type)
+    {
+        return ColumnMapping.objectMapping(
+                type,
+                nestedReadFunction(type),
+                objectWriteFunction(type, (block, position) -> toGeoJdbcValue(type, block, position)),
+                DISABLE_PUSHDOWN);
+    }
+
+    @SuppressWarnings("unchecked")
+    private ObjectReadFunction nestedReadFunction(Type type)
+    {
+        return ObjectReadFunction.of((Class<Object>) type.getJavaType(), (resultSet, columnIndex) -> {
+            BlockBuilder builder = type.createBlockBuilder(null, 1);
+            appendValue(type, builder, resultSet.getObject(columnIndex), 0);
+            return type.getObject(builder.build(), 0);
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ObjectWriteFunction objectWriteFunction(Type type, BiFunction<Block, Integer, Object> toJdbcValue)
+    {
+        return ObjectWriteFunction.of((Class<Object>) type.getJavaType(), (statement, index, value) -> {
+            BlockBuilder builder = type.createBlockBuilder(null, 1);
+            type.writeObject(builder, value);
+            statement.setObject(index, toJdbcValue.apply(builder.build(), 0));
+        });
+    }
+
+    // The JDBC driver accepts geo values as nested double arrays, for example double[][] for a Ring
+    private static Object toGeoJdbcValue(Type type, Block block, int position)
+    {
+        if (block.isNull(position)) {
+            throw new TrinoException(INVALID_ARGUMENTS, "ClickHouse geo values cannot contain null");
+        }
+        if (type instanceof RowType rowType) {
+            SqlRow point = rowType.getObject(block, position);
+            double[] coordinates = new double[2];
+            for (int field = 0; field < 2; field++) {
+                Block fieldBlock = point.getRawFieldBlock(field);
+                if (fieldBlock.isNull(point.getRawIndex())) {
+                    throw new TrinoException(INVALID_ARGUMENTS, "ClickHouse geo values cannot contain null");
+                }
+                coordinates[field] = DOUBLE.getDouble(fieldBlock, point.getRawIndex());
+            }
+            return coordinates;
+        }
+        ArrayType arrayType = (ArrayType) type;
+        Block elements = arrayType.getObject(block, position);
+        Object values = java.lang.reflect.Array.newInstance(geoJavaClass(arrayType.getElementType()), elements.getPositionCount());
+        for (int i = 0; i < elements.getPositionCount(); i++) {
+            java.lang.reflect.Array.set(values, i, toGeoJdbcValue(arrayType.getElementType(), elements, i));
+        }
+        return values;
+    }
+
+    private static Class<?> geoJavaClass(Type type)
+    {
+        if (type instanceof ArrayType arrayType) {
+            return geoJavaClass(arrayType.getElementType()).arrayType();
+        }
+        return double[].class;
     }
 
     private ObjectReadFunction arrayReadFunction(Type elementType)
@@ -1292,6 +1468,13 @@ public class ClickHouseClient
         if (javaArray == null) {
             return elementType.createBlockBuilder(null, 0).build();
         }
+        if (javaArray instanceof List<?> list) {
+            BlockBuilder builder = elementType.createBlockBuilder(null, list.size());
+            for (Object element : list) {
+                appendValue(elementType, builder, element, depth);
+            }
+            return builder.build();
+        }
         int length;
         try {
             length = java.lang.reflect.Array.getLength(javaArray);
@@ -1301,16 +1484,43 @@ public class ClickHouseClient
         }
         BlockBuilder builder = elementType.createBlockBuilder(null, length);
         for (int i = 0; i < length; i++) {
-            appendArrayElement(elementType, builder, java.lang.reflect.Array.get(javaArray, i), depth);
+            appendValue(elementType, builder, java.lang.reflect.Array.get(javaArray, i), depth);
         }
         return builder.build();
     }
 
-    private void appendArrayElement(Type type, BlockBuilder builder, Object value, int depth)
+    private void appendValue(Type type, BlockBuilder builder, Object value, int depth)
             throws SQLException
     {
         if (value == null) {
             builder.appendNull();
+            return;
+        }
+        if (type instanceof MapType mapType) {
+            checkNestingDepth(depth);
+            if (!(value instanceof Map<?, ?> map)) {
+                throw new TrinoException(JDBC_ERROR, "Unexpected map value from ClickHouse JDBC: " + value.getClass());
+            }
+            ((MapBlockBuilder) builder).buildEntry((keyBuilder, valueBuilder) -> {
+                for (Entry<?, ?> entry : map.entrySet()) {
+                    appendValue(mapType.getKeyType(), keyBuilder, entry.getKey(), depth + 1);
+                    appendValue(mapType.getValueType(), valueBuilder, entry.getValue(), depth + 1);
+                }
+            });
+            return;
+        }
+        if (type instanceof RowType rowType) {
+            checkNestingDepth(depth);
+            List<?> fieldValues = toFieldValues(value);
+            List<RowType.Field> fields = rowType.getFields();
+            if (fieldValues.size() != fields.size()) {
+                throw new TrinoException(JDBC_ERROR, "Expected %s tuple elements from ClickHouse JDBC, but got %s".formatted(fields.size(), fieldValues.size()));
+            }
+            ((RowBlockBuilder) builder).buildEntry(fieldBuilders -> {
+                for (int i = 0; i < fields.size(); i++) {
+                    appendValue(fields.get(i).getType(), fieldBuilders.get(i), fieldValues.get(i), depth + 1);
+                }
+            });
             return;
         }
         if (type instanceof ArrayType arrayType) {
@@ -1418,6 +1628,30 @@ public class ClickHouseClient
         else {
             type.writeObject(builder, value);
         }
+    }
+
+    private static void checkNestingDepth(int depth)
+    {
+        if (depth >= MAX_ARRAY_NESTING_DEPTH) {
+            throw new TrinoException(NOT_SUPPORTED, "Nesting depth exceeds maximum of %d".formatted(MAX_ARRAY_NESTING_DEPTH));
+        }
+    }
+
+    // The JDBC driver returns tuples as lists and geo points as double[]
+    private static List<?> toFieldValues(Object value)
+    {
+        if (value instanceof List<?> list) {
+            return list;
+        }
+        if (value.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(value);
+            List<Object> values = new ArrayList<>(length);
+            for (int i = 0; i < length; i++) {
+                values.add(java.lang.reflect.Array.get(value, i));
+            }
+            return values;
+        }
+        throw new TrinoException(JDBC_ERROR, "Unexpected tuple value from ClickHouse JDBC: " + value.getClass());
     }
 
     private static void writeTimestampWithTimeZone(TimestampWithTimeZoneType type, BlockBuilder builder, Object value)
@@ -1543,6 +1777,25 @@ public class ClickHouseClient
         }
         if (type instanceof ArrayType arrayType) {
             return toJdbcObjectArray(arrayType.getElementType(), (Block) type.getObject(block, position));
+        }
+        if (type instanceof MapType mapType) {
+            SqlMap sqlMap = mapType.getObject(block, position);
+            Map<Object, Object> values = new LinkedHashMap<>();
+            for (int i = 0; i < sqlMap.getSize(); i++) {
+                int entry = sqlMap.getRawOffset() + i;
+                values.put(
+                        toJdbcObjectValue(mapType.getKeyType(), sqlMap.getRawKeyBlock(), entry),
+                        toJdbcObjectValue(mapType.getValueType(), sqlMap.getRawValueBlock(), entry));
+            }
+            return values;
+        }
+        if (type instanceof RowType rowType) {
+            SqlRow sqlRow = rowType.getObject(block, position);
+            List<Object> values = new ArrayList<>(rowType.getFields().size());
+            for (int field = 0; field < rowType.getFields().size(); field++) {
+                values.add(toJdbcObjectValue(rowType.getFields().get(field).getType(), sqlRow.getRawFieldBlock(field), sqlRow.getRawIndex()));
+            }
+            return values;
         }
         throw new TrinoException(NOT_SUPPORTED, "Unsupported element type for ClickHouse array write: %s".formatted(type));
     }

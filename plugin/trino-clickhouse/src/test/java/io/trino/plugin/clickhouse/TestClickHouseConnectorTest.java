@@ -569,11 +569,11 @@ public class TestClickHouseConnectorTest
     @Override
     protected TestTable createTableWithUnsupportedColumn()
     {
-        // Point is a ClickHouse geometry type not supported by the connector
+        // Int128 is not supported by the connector
         return new TestTable(
                 onRemoteDatabase(),
                 "tpch.test_unsupported_column_present",
-                "(one bigint, two Point, three String) ENGINE=Log");
+                "(one bigint, two Int128, three String) ENGINE=Log");
     }
 
     @Test
@@ -990,8 +990,8 @@ public class TestClickHouseConnectorTest
                 "tpch.test_textual_predicate_pushdown",
                 """
                 (
-                unsupported_1 Point,
-                unsupported_2 Point,
+                unsupported_1 Int128,
+                unsupported_2 Int128,
                 some_column String,
                 a_string String,
                 a_string_alias Text,
@@ -1006,12 +1006,12 @@ public class TestClickHouseConnectorTest
                 ENGINE=Log
                 """,
                 List.of(
-                        "(10, 10), (10, 10), 'z', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', 'hello', 'world'",
-                        "(10, 10), (10, 10), 'z', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_'",
-                        "(10, 10), (10, 10), 'z', '%', '%', '%', '%', '%', '%', '%', '%', '%', '%'",
-                        "(10, 10), (10, 10), 'z', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'",
-                        "(10, 10), (10, 10), 'z', 'b', 'b', 'b', 'b', 'b', 'b', 'b', 'b', 'b', 'b'",
-                        "(10, 10), (10, 10), 'z', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c'"))) {
+                        "10, 10, 'z', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', 'hello', 'world'",
+                        "10, 10, 'z', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_'",
+                        "10, 10, 'z', '%', '%', '%', '%', '%', '%', '%', '%', '%', '%'",
+                        "10, 10, 'z', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'",
+                        "10, 10, 'z', 'b', 'b', 'b', 'b', 'b', 'b', 'b', 'b', 'b', 'b'",
+                        "10, 10, 'z', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c'"))) {
             assertThat(query("SELECT some_column FROM " + table.getName() + " WHERE a_string = 'b'")).isFullyPushedDown();
             assertThat(query("SELECT some_column FROM " + table.getName() + " WHERE a_string = 'b'" + withConnectorExpression)).isFullyPushedDown();
             assertThat(query("SELECT some_column FROM " + table.getName() + " WHERE a_string_alias = 'b'")).isFullyPushedDown();

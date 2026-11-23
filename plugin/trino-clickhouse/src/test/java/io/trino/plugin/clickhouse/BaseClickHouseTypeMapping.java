@@ -16,7 +16,11 @@ package io.trino.plugin.clickhouse;
 import com.google.common.collect.ImmutableList;
 import io.trino.Session;
 import io.trino.spi.type.ArrayType;
+import io.trino.spi.type.MapType;
+import io.trino.spi.type.RowType;
 import io.trino.spi.type.TimeZoneKey;
+import io.trino.spi.type.Type;
+import io.trino.spi.type.TypeOperators;
 import io.trino.spi.type.UuidType;
 import io.trino.testing.AbstractTestQueryFramework;
 import io.trino.testing.TestingSession;
@@ -64,6 +68,7 @@ import static io.trino.type.IpAddressType.IPADDRESS;
 import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.abort;
 import static org.junit.jupiter.api.TestInstance.Lifecycle.PER_CLASS;
 
 @TestInstance(PER_CLASS)
@@ -81,6 +86,8 @@ public abstract class BaseClickHouseTypeMapping
     // https://clickhouse.com/docs/sql-reference/data-types/datetime
     private static final String MIN_SUPPORTED_DATETIME_VALUE = "1970-01-01 00:00:00";
     private static final String MAX_SUPPORTED_DATETIME_VALUE = "2106-02-07 06:28:15";
+
+    private static final RowType GEO_POINT = RowType.from(List.of(RowType.field("x", DOUBLE), RowType.field("y", DOUBLE)));
 
     protected TestingClickHouseServer clickhouseServer;
 
@@ -1402,17 +1409,17 @@ public abstract class BaseClickHouseTypeMapping
     @Test
     public void testArrayWithUnsupportedType()
     {
-        // Array(Point) is not supported; column should be hidden by default
-        try (TestTable table = new TestTable(onRemoteDatabase(), "tpch.test_array_unsupported", "(id Int32, col Array(Point)) ENGINE=Log")) {
+        // Array(Int128) is not supported; column should be hidden by default
+        try (TestTable table = new TestTable(onRemoteDatabase(), "tpch.test_array_unsupported", "(id Int32, col Array(Int128)) ENGINE=Log")) {
             assertQueryFails("SELECT col FROM " + table.getName(), ".*Column 'col' cannot be resolved.*");
         }
 
-        // Array(Point) with CONVERT_TO_VARCHAR: the column is exposed as varchar
+        // Array(Int128) with CONVERT_TO_VARCHAR: the column is exposed as varchar
         Session convertToVarchar = Session.builder(getSession())
                 .setCatalogSessionProperty("clickhouse", UNSUPPORTED_TYPE_HANDLING, CONVERT_TO_VARCHAR.name())
                 .build();
-        try (TestTable table = new TestTable(onRemoteDatabase(), "tpch.test_array_point", "(col Array(Point)) ENGINE=Log")) {
-            // Array(Point) with CONVERT_TO_VARCHAR: Point element maps to varchar, so the result is array(varchar)
+        try (TestTable table = new TestTable(onRemoteDatabase(), "tpch.test_array_int128", "(col Array(Int128)) ENGINE=Log")) {
+            // Array(Int128) with CONVERT_TO_VARCHAR: Int128 element maps to varchar, so the result is array(varchar)
             assertThat(computeActual(convertToVarchar, "SELECT col FROM " + table.getName()).getTypes())
                     .containsExactly(new ArrayType(VARCHAR));
         }
@@ -1436,14 +1443,101 @@ public abstract class BaseClickHouseTypeMapping
     }
 
     @Test
-    public void testUnsupportedPoint()
+    public void testUnsupportedInt128()
     {
         Session convertToVarchar = Session.builder(getSession())
                 .setCatalogSessionProperty("clickhouse", UNSUPPORTED_TYPE_HANDLING, CONVERT_TO_VARCHAR.name())
                 .build();
         SqlDataTypeTest.create()
-                .addRoundTrip("Point", "(10, 10)", VARCHAR, "varchar '(10.0,10.0)'")
-                .execute(getQueryRunner(), convertToVarchar, clickhouseCreateAndInsert("tpch.point"));
+                .addRoundTrip("Int128", "170141183460469231731687303715884105727", VARCHAR, "varchar '170141183460469231731687303715884105727'")
+                .execute(getQueryRunner(), convertToVarchar, clickhouseCreateAndInsert("tpch.int128"));
+    }
+
+    @Test
+    public void testMap()
+    {
+        Session session = mapStringAsVarcharSession();
+        SqlDataTypeTest.create()
+                .addRoundTrip("Map(String, UInt64)", "{'a': 1, 'b': 2, '': 0}", mapType(VARCHAR, createDecimalType(20, 0)), "CAST(MAP(ARRAY['a', 'b', ''], ARRAY[1, 2, 0]) AS map(varchar, decimal(20, 0)))")
+                .addRoundTrip("Map(String, UInt64)", "{}", mapType(VARCHAR, createDecimalType(20, 0)), "CAST(MAP() AS map(varchar, decimal(20, 0)))")
+                .addRoundTrip("Map(LowCardinality(String), Nullable(String))", "{'k1': 'v1', 'k2': NULL}", mapType(VARCHAR, VARCHAR), "MAP(ARRAY[VARCHAR 'k1', VARCHAR 'k2'], ARRAY[VARCHAR 'v1', NULL])")
+                .addRoundTrip("Map(Int32, Array(String))", "{1: ['x', 'y']}", mapType(INTEGER, new ArrayType(VARCHAR)), "MAP(ARRAY[1], ARRAY[ARRAY[VARCHAR 'x', VARCHAR 'y']])")
+                .execute(getQueryRunner(), session, clickhouseCreateAndInsert("tpch.test_map"));
+
+        SqlDataTypeTest.create()
+                .addRoundTrip("Map(String, UInt64)", "MAP(ARRAY['a', 'b'], ARRAY[DECIMAL '1', DECIMAL '2'])", mapType(VARCHAR, createDecimalType(20, 0)), "CAST(MAP(ARRAY['a', 'b'], ARRAY[1, 2]) AS map(varchar, decimal(20, 0)))")
+                .addRoundTrip("Map(LowCardinality(String), Nullable(String))", "MAP(ARRAY['k1', 'k2'], ARRAY['v1', NULL])", mapType(VARCHAR, VARCHAR), "MAP(ARRAY[VARCHAR 'k1', VARCHAR 'k2'], ARRAY[VARCHAR 'v1', NULL])")
+                .addRoundTrip("Map(Int32, Array(String))", "MAP(ARRAY[1], ARRAY[ARRAY['x', 'y']])", mapType(INTEGER, new ArrayType(VARCHAR)), "MAP(ARRAY[1], ARRAY[ARRAY[VARCHAR 'x', VARCHAR 'y']])")
+                .execute(getQueryRunner(), session, clickhouseCreateAndTrinoInsert(session, "tpch.test_map"));
+    }
+
+    @Test
+    public void testTuple()
+    {
+        Session session = mapStringAsVarcharSession();
+        RowType namedRow = RowType.from(List.of(RowType.field("id", INTEGER), RowType.field("label", VARCHAR)));
+        RowType nestedRow = RowType.from(List.of(RowType.field("a", INTEGER), RowType.field("b", VARCHAR), RowType.field("c", new ArrayType(SMALLINT))));
+        SqlDataTypeTest.create()
+                .addRoundTrip("Tuple(id Int32, label String)", "(1, 'one')", namedRow, "CAST(ROW(1, 'one') AS ROW(id integer, label varchar))")
+                .addRoundTrip("Tuple(Int32, String)", "(2, 'two')", RowType.anonymous(List.of(INTEGER, VARCHAR)), "CAST(ROW(2, 'two') AS ROW(integer, varchar))")
+                .addRoundTrip("Tuple(a Int32, b Nullable(String), c Array(UInt8))", "(1, NULL, [1, 2])", nestedRow, "CAST(ROW(1, NULL, ARRAY[1, 2]) AS ROW(a integer, b varchar, c array(smallint)))")
+                .addRoundTrip("Array(Tuple(id Int32, label String))", "[(1, 'x'), (2, 'y')]", new ArrayType(namedRow), "CAST(ARRAY[ROW(1, 'x'), ROW(2, 'y')] AS array(row(id integer, label varchar)))")
+                .execute(getQueryRunner(), session, clickhouseCreateAndInsert("tpch.test_tuple"));
+
+        SqlDataTypeTest.create()
+                .addRoundTrip("Tuple(id Int32, label String)", "CAST(ROW(1, 'one') AS ROW(id integer, label varchar))", namedRow, "CAST(ROW(1, 'one') AS ROW(id integer, label varchar))")
+                .addRoundTrip("Tuple(a Int32, b Nullable(String), c Array(UInt8))", "CAST(ROW(1, NULL, ARRAY[1, 2]) AS ROW(a integer, b varchar, c array(smallint)))", nestedRow, "CAST(ROW(1, NULL, ARRAY[1, 2]) AS ROW(a integer, b varchar, c array(smallint)))")
+                .execute(getQueryRunner(), session, clickhouseCreateAndTrinoInsert(session, "tpch.test_tuple"));
+    }
+
+    @Test
+    public void testGeo()
+    {
+        ArrayType ring = new ArrayType(GEO_POINT);
+        ArrayType polygon = new ArrayType(ring);
+        ArrayType multiPolygon = new ArrayType(polygon);
+        SqlDataTypeTest.create()
+                .addRoundTrip("Point", "(1.5, 2.5)", GEO_POINT, "CAST(ROW(1.5, 2.5) AS ROW(x double, y double))")
+                .addRoundTrip("Ring", "[(0, 0), (10, 0), (10, 10)]", ring, "CAST(ARRAY[ROW(0, 0), ROW(10, 0), ROW(10, 10)] AS array(row(x double, y double)))")
+                .addRoundTrip("Polygon", "[[(20, 20), (50, 20), (50, 50)], [(30, 30), (50, 50), (50, 30)]]", polygon, "CAST(ARRAY[ARRAY[ROW(20, 20), ROW(50, 20), ROW(50, 50)], ARRAY[ROW(30, 30), ROW(50, 50), ROW(50, 30)]] AS array(array(row(x double, y double))))")
+                .addRoundTrip("MultiPolygon", "[[[(0, 0), (10, 0), (10, 10)]], [[(20, 20), (50, 20), (50, 50)]]]", multiPolygon, "CAST(ARRAY[ARRAY[ARRAY[ROW(0, 0), ROW(10, 0), ROW(10, 10)]], ARRAY[ARRAY[ROW(20, 20), ROW(50, 20), ROW(50, 50)]]] AS array(array(array(row(x double, y double)))))")
+                .addRoundTrip("Array(Point)", "[(1, 2), (3, 4)]", ring, "CAST(ARRAY[ROW(1, 2), ROW(3, 4)] AS array(row(x double, y double)))")
+                .execute(getQueryRunner(), clickhouseCreateAndInsert("tpch.test_geo"));
+
+        SqlDataTypeTest.create()
+                .addRoundTrip("Point", "CAST(ROW(1.5, 2.5) AS ROW(x double, y double))", GEO_POINT, "CAST(ROW(1.5, 2.5) AS ROW(x double, y double))")
+                .addRoundTrip("Ring", "CAST(ARRAY[ROW(0, 0), ROW(10, 0), ROW(10, 10)] AS array(row(x double, y double)))", ring, "CAST(ARRAY[ROW(0, 0), ROW(10, 0), ROW(10, 10)] AS array(row(x double, y double)))")
+                .addRoundTrip("Polygon", "CAST(ARRAY[ARRAY[ROW(20, 20), ROW(50, 20), ROW(50, 50)]] AS array(array(row(x double, y double))))", polygon, "CAST(ARRAY[ARRAY[ROW(20, 20), ROW(50, 20), ROW(50, 50)]] AS array(array(row(x double, y double))))")
+                .addRoundTrip("MultiPolygon", "CAST(ARRAY[ARRAY[ARRAY[ROW(0, 0), ROW(10, 0), ROW(10, 10)]]] AS array(array(array(row(x double, y double)))))", multiPolygon, "CAST(ARRAY[ARRAY[ARRAY[ROW(0, 0), ROW(10, 0), ROW(10, 10)]]] AS array(array(array(row(x double, y double)))))")
+                .execute(getQueryRunner(), clickhouseCreateAndTrinoInsert("tpch.test_geo"));
+    }
+
+    @Test
+    public void testLineStringGeoTypes()
+    {
+        if (!isLineStringSupported()) {
+            abort("LineString and MultiLineString are not supported by this ClickHouse version");
+        }
+        ArrayType lineString = new ArrayType(GEO_POINT);
+        SqlDataTypeTest.create()
+                .addRoundTrip("LineString", "[(0, 0), (1, 1)]", lineString, "CAST(ARRAY[ROW(0, 0), ROW(1, 1)] AS array(row(x double, y double)))")
+                .addRoundTrip("MultiLineString", "[[(0, 0), (1, 1)], [(2, 2), (3, 3)]]", new ArrayType(lineString), "CAST(ARRAY[ARRAY[ROW(0, 0), ROW(1, 1)], ARRAY[ROW(2, 2), ROW(3, 3)]] AS array(array(row(x double, y double))))")
+                .execute(getQueryRunner(), clickhouseCreateAndInsert("tpch.test_line_string"));
+    }
+
+    private boolean isLineStringSupported()
+    {
+        try (TestTable _ = new TestTable(onRemoteDatabase(), "tpch.test_line_string_support", "(l LineString) ENGINE=Log")) {
+            return true;
+        }
+        catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private static MapType mapType(Type keyType, Type valueType)
+    {
+        return new MapType(keyType, valueType, new TypeOperators());
     }
 
     protected static Session mapStringAsVarcharSession()
@@ -1483,6 +1577,11 @@ public abstract class BaseClickHouseTypeMapping
     protected DataSetup clickhouseCreateAndTrinoInsert(String tableNamePrefix)
     {
         return new CreateAndTrinoInsertDataSetup(new ClickHouseSqlExecutor(onRemoteDatabase()), new TrinoSqlExecutor(getQueryRunner()), tableNamePrefix);
+    }
+
+    protected DataSetup clickhouseCreateAndTrinoInsert(Session session, String tableNamePrefix)
+    {
+        return new CreateAndTrinoInsertDataSetup(new ClickHouseSqlExecutor(onRemoteDatabase()), new TrinoSqlExecutor(getQueryRunner(), session), tableNamePrefix);
     }
 
     protected SqlExecutor onRemoteDatabase()
