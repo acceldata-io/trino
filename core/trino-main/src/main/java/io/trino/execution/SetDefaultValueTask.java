@@ -76,7 +76,7 @@ public class SetDefaultValueTask
     {
         Session session = stateMachine.getSession();
         Map<NodeRef<Parameter>, Expression> parameterLookup = bindParameters(statement, parameters);
-        QualifiedObjectName tableName = createQualifiedObjectName(session, statement, statement.getTableName());
+        QualifiedObjectName tableName = createQualifiedObjectName(session, statement, statement.getTableName(), metadata);
         RedirectionAwareTableHandle redirectionAwareTableHandle = metadata.getRedirectionAwareTableHandle(session, tableName);
 
         if (redirectionAwareTableHandle.tableHandle().isEmpty()) {

@@ -48,6 +48,7 @@ import static io.airlift.slice.Slices.utf8Slice;
 import static io.trino.connector.system.jdbc.FilterUtil.tryGetSingleVarcharValue;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static io.trino.spi.StandardErrorCode.TABLE_REDIRECTION_ERROR;
+import static io.trino.spi.connector.CatalogSchemaName.caseSensitiveCatalogSchemaName;
 import static java.util.function.Function.identity;
 
 public final class MetadataListing
@@ -98,7 +99,7 @@ public final class MetadataListing
         return catalogNames.stream()
                 .flatMap(catalogName ->
                         listSchemas(session, metadata, accessControl, catalogName, schemaName).stream()
-                                .map(name -> new CatalogSchemaName(catalogName, name)))
+                                .map(name -> caseSensitiveCatalogSchemaName(catalogName, name)))
                 .collect(toImmutableSet());
     }
 

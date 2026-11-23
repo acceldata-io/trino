@@ -36,13 +36,30 @@ public class TestQualifiedObjectName
         // names with apostrophes
         testRoundTrip(new QualifiedObjectName("cata\"l.o.g\"", "s\"ch.e.ma\"", "\"t.a.b.e.l\""));
 
-        // non-lowercase (currently illegal but TODO coming in https://github.com/trinodb/trino/issues/17)
+        // catalog names must be lowercase
         assertThatThrownBy(() -> new QualifiedObjectName("CataLOG", "SchemA", "TabEl"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("catalogName is not lowercase: CataLOG");
 
+        // schema and table names keep their case in catalogs with case-sensitive names
+        testRoundTrip(new QualifiedObjectName("catalog", "SchemA", "TabEl"));
+
         // empty
         testRoundTrip(new QualifiedObjectName("", "", ""));
+    }
+
+    @Test
+    public void testCaseSensitiveNames()
+    {
+        QualifiedObjectName name = new QualifiedObjectName("catalog", "DUP_DB", "DUP_CASE");
+        assertThat(name.toString()).isEqualTo("catalog.\"DUP_DB\".\"DUP_CASE\"");
+        assertThat(name.asSchemaTableName().getSchemaName()).isEqualTo("DUP_DB");
+        assertThat(name.asSchemaTableName().getTableName()).isEqualTo("DUP_CASE");
+        assertThat(name.asCatalogSchemaTableName().getSchemaTableName().getTableName()).isEqualTo("DUP_CASE");
+
+        assertThat(QualifiedObjectName.valueOf("catalog.\"DUP_DB\".\"DUP_CASE\"")).isEqualTo(name);
+        // unquoted parts are lowercased, as in SQL
+        assertThat(QualifiedObjectName.valueOf("Catalog.DUP_DB.DUP_CASE")).isEqualTo(new QualifiedObjectName("catalog", "dup_db", "dup_case"));
     }
 
     private void testRoundTrip(QualifiedObjectName value)

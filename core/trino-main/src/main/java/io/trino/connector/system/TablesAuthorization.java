@@ -37,10 +37,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static io.trino.connector.system.jdbc.FilterUtil.isImpossibleObjectName;
 import static io.trino.connector.system.jdbc.FilterUtil.tryGetSingleVarcharValue;
 import static io.trino.metadata.MetadataListing.listAllAvailableSchemas;
 import static io.trino.metadata.MetadataListing.listTables;
 import static io.trino.metadata.MetadataUtil.TableMetadataBuilder.tableMetadataBuilder;
+import static io.trino.metadata.MetadataUtil.hasCaseSensitiveNames;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static io.trino.spi.connector.SystemTable.Distribution.SINGLE_COORDINATOR;
 import static io.trino.spi.type.VarcharType.VARCHAR;
@@ -126,6 +128,9 @@ public class TablesAuthorization
         Optional<String> tableName = tryGetSingleVarcharValue(constraint.getDomain(2, VARCHAR));
         ImmutableList.Builder<CatalogTableAuthorization> result = ImmutableList.builder();
         availableSchemas.forEach(catalogSchemaName -> {
+            if (tableName.isPresent() && isImpossibleObjectName(tableName.get(), hasCaseSensitiveNames(metadata, session, catalogSchemaName.getCatalogName()))) {
+                return;
+            }
             QualifiedTablePrefix prefix = new QualifiedTablePrefix(catalogSchemaName.getCatalogName(), Optional.of(catalogSchemaName.getSchemaName()), tableName);
             Set<SchemaTableName> accessibleNames = listTables(session, metadata, accessControl, prefix);
             Set<TableAuthorization> allTablesAuthorization = metadata.getTablesAuthorizationInfo(session, prefix);

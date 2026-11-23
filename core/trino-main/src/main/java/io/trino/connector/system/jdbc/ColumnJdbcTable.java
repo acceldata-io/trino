@@ -72,6 +72,8 @@ import static io.trino.metadata.MetadataListing.listSchemas;
 import static io.trino.metadata.MetadataListing.listTableColumns;
 import static io.trino.metadata.MetadataListing.listTables;
 import static io.trino.metadata.MetadataUtil.TableMetadataBuilder.tableMetadataBuilder;
+import static io.trino.metadata.MetadataUtil.hasCaseSensitiveNames;
+import static io.trino.spi.connector.CatalogSchemaName.caseSensitiveCatalogSchemaName;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DateType.DATE;
@@ -166,7 +168,7 @@ public class ColumnJdbcTable
         Domain schemaDomain = tupleDomain.getDomain(TABLE_SCHEMA_COLUMN, VARCHAR);
         Domain tableDomain = tupleDomain.getDomain(TABLE_NAME_COLUMN, VARCHAR);
 
-        if (isImpossibleObjectName(catalogDomain) || isImpossibleObjectName(schemaDomain) || isImpossibleObjectName(tableDomain)) {
+        if (isImpossibleObjectName(catalogDomain) || isImpossibleObjectName(schemaDomain, true) || isImpossibleObjectName(tableDomain, true)) {
             return TupleDomain.none();
         }
 
@@ -180,6 +182,10 @@ public class ColumnJdbcTable
 
         List<String> catalogs = listCatalogNames(session, metadata, accessControl, catalogDomain).stream()
                 .filter(catalogName -> predicate.test(ImmutableMap.of(TABLE_CATALOG_COLUMN, toNullableValue(catalogName))))
+                .filter(catalogName -> {
+                    boolean caseSensitiveNames = hasCaseSensitiveNames(metadata, session, catalogName);
+                    return !isImpossibleObjectName(schemaDomain, caseSensitiveNames) && !isImpossibleObjectName(tableDomain, caseSensitiveNames);
+                })
                 .collect(toImmutableList());
 
         List<CatalogSchemaName> schemas = catalogs.stream()
@@ -188,7 +194,7 @@ public class ColumnJdbcTable
                                 .filter(schemaName -> !hasSchemaPredicate || predicate.test(ImmutableMap.of(
                                         TABLE_CATALOG_COLUMN, toNullableValue(catalogName),
                                         TABLE_SCHEMA_COLUMN, toNullableValue(schemaName))))
-                                .map(schemaName -> new CatalogSchemaName(catalogName, schemaName)))
+                                .map(schemaName -> caseSensitiveCatalogSchemaName(catalogName, schemaName)))
                 .collect(toImmutableList());
 
         if (!hasTablePredicate) {
@@ -214,7 +220,7 @@ public class ColumnJdbcTable
                                     TABLE_CATALOG_COLUMN, toNullableValue(schema.getCatalogName()),
                                     TABLE_SCHEMA_COLUMN, toNullableValue(schemaTableName.getSchemaName()),
                                     TABLE_NAME_COLUMN, toNullableValue(schemaTableName.getTableName()))))
-                            .map(schemaTableName -> new CatalogSchemaTableName(schema.getCatalogName(), schemaTableName.getSchemaName(), schemaTableName.getTableName()));
+                            .map(schemaTableName -> new CatalogSchemaTableName(schema.getCatalogName(), schemaTableName));
                 })
                 .collect(toImmutableList());
 
@@ -248,7 +254,7 @@ public class ColumnJdbcTable
         Domain schemaDomain = constraint.getDomain(1, VARCHAR);
         Domain tableDomain = constraint.getDomain(2, VARCHAR);
 
-        if (isImpossibleObjectName(catalogDomain) || isImpossibleObjectName(schemaDomain) || isImpossibleObjectName(tableDomain)) {
+        if (isImpossibleObjectName(catalogDomain)) {
             return table.build().cursor();
         }
 
@@ -257,6 +263,10 @@ public class ColumnJdbcTable
 
         for (String catalog : listCatalogNames(session, metadata, accessControl, catalogDomain)) {
             if (!catalogDomain.includesNullableValue(utf8Slice(catalog))) {
+                continue;
+            }
+            boolean caseSensitiveNames = hasCaseSensitiveNames(metadata, session, catalog);
+            if (isImpossibleObjectName(schemaDomain, caseSensitiveNames) || isImpossibleObjectName(tableDomain, caseSensitiveNames)) {
                 continue;
             }
 

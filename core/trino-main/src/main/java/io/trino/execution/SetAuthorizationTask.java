@@ -13,6 +13,7 @@
  */
 package io.trino.execution;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.inject.Inject;
 import io.trino.Session;
@@ -36,6 +37,7 @@ import static io.trino.metadata.MetadataUtil.createCatalogSchemaName;
 import static io.trino.metadata.MetadataUtil.createPrincipal;
 import static io.trino.metadata.MetadataUtil.fillInNameParts;
 import static io.trino.metadata.MetadataUtil.getRequiredCatalogHandle;
+import static io.trino.metadata.MetadataUtil.keepQuotedNameCase;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.trino.spi.StandardErrorCode.SCHEMA_NOT_FOUND;
 import static io.trino.spi.StandardErrorCode.TABLE_NOT_FOUND;
@@ -81,13 +83,14 @@ public class SetAuthorizationTask
         // Preprocess SCHEMA, TABLE and VIEW to generate error messages in the order compatible with existing tests
         switch (statement.getOwnedEntityKind()) {
             case "SCHEMA" -> {
-                CatalogSchemaName source = createCatalogSchemaName(session, statement, Optional.of(statement.getSource()));
+                CatalogSchemaName source = createCatalogSchemaName(session, statement, Optional.of(statement.getSource()), metadata);
                 if (!metadata.schemaExists(session, source)) {
                     throw semanticException(SCHEMA_NOT_FOUND, statement, "Schema '%s' does not exist", source);
                 }
+                name = ImmutableList.of(source.getCatalogName(), source.getSchemaName());
             }
             case "TABLE" -> {
-                QualifiedObjectName tableName = new QualifiedObjectName(name.get(0), name.get(1), name.get(2));
+                QualifiedObjectName tableName = keepQuotedNameCase(session, new QualifiedObjectName(name.get(0), name.get(1), name.get(2)), statement.getSource(), metadata);
                 getRequiredCatalogHandle(metadata, session, statement, name.get(0));
                 RedirectionAwareTableHandle redirection = metadata.getRedirectionAwareTableHandle(session, tableName);
                 if (redirection.tableHandle().isEmpty()) {
@@ -96,6 +99,7 @@ public class SetAuthorizationTask
                 if (redirection.redirectedTableName().isPresent()) {
                     throw semanticException(NOT_SUPPORTED, statement, "Table %s is redirected to %s and SET TABLE AUTHORIZATION is not supported with table redirections", tableName, redirection.redirectedTableName().get());
                 }
+                name = ImmutableList.of(tableName.catalogName(), tableName.schemaName(), tableName.objectName());
             }
             case "VIEW" -> {
                 QualifiedObjectName viewName = new QualifiedObjectName(name.get(0), name.get(1), name.get(2));

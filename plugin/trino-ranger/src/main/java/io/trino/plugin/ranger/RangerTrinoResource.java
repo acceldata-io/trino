@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.Locale.ENGLISH;
+
 class RangerTrinoResource
         extends RangerAccessResourceImpl
 {
@@ -71,7 +73,7 @@ class RangerTrinoResource
         RangerTrinoResource ret = new RangerTrinoResource();
 
         ret.setValue(KEY_CATALOG, catalogName);
-        ret.setValue(KEY_SCHEMA, schema);
+        ret.setValue(KEY_SCHEMA, quoteIfCaseSensitive(schema));
 
         return ret;
     }
@@ -81,8 +83,8 @@ class RangerTrinoResource
         RangerTrinoResource ret = new RangerTrinoResource();
 
         ret.setValue(KEY_CATALOG, catalogName);
-        ret.setValue(KEY_SCHEMA, schema);
-        ret.setValue(KEY_TABLE, tableName);
+        ret.setValue(KEY_SCHEMA, quoteIfCaseSensitive(schema));
+        ret.setValue(KEY_TABLE, quoteIfCaseSensitive(tableName));
 
         return ret;
     }
@@ -92,8 +94,8 @@ class RangerTrinoResource
         RangerTrinoResource ret = new RangerTrinoResource();
 
         ret.setValue(KEY_CATALOG, catalogName);
-        ret.setValue(KEY_SCHEMA, schema);
-        ret.setValue(KEY_TABLE, tableName);
+        ret.setValue(KEY_SCHEMA, quoteIfCaseSensitive(schema));
+        ret.setValue(KEY_TABLE, quoteIfCaseSensitive(tableName));
         ret.setValue(KEY_COLUMN, columnName);
 
         return ret;
@@ -138,6 +140,19 @@ class RangerTrinoResource
         ret.setValue(KEY_SESSION_PROPERTY, propertyName);
 
         return ret;
+    }
+
+    /**
+     * Schema and table names with uppercase letters only come from catalogs with case-sensitive names.
+     * A leading quote keeps them apart from policies on the lowercase name, and Ranger matches such
+     * values case-sensitively when the resource definition sets {@code quotedCaseSensitive}.
+     */
+    static String quoteIfCaseSensitive(String name)
+    {
+        if (name.equals(name.toLowerCase(ENGLISH))) {
+            return name;
+        }
+        return "\"" + name;
     }
 
     private RangerTrinoResource() {}
