@@ -634,6 +634,33 @@ public class TestClickHouseConnectorTest
     }
 
     @Test
+    public void testInsertWithoutSelectPrivilege()
+    {
+        String user = "insert_only_" + randomNameSuffix();
+        String catalog = "clickhouse_" + user;
+        try (TestTable table = new TestTable(onRemoteDatabase(), "tpch.test_insert_only", "(id Int32, s String) ENGINE=Log")) {
+            onRemoteDatabase().execute("CREATE USER %s IDENTIFIED WITH plaintext_password BY 'insert'".formatted(user));
+            try {
+                onRemoteDatabase().execute("GRANT INSERT ON %s TO %s".formatted(table.getName(), user));
+                // ClickHouse requires this privilege to use the input() table function
+                onRemoteDatabase().execute("GRANT CREATE TEMPORARY TABLE ON *.* TO " + user);
+                getQueryRunner().createCatalog(catalog, "clickhouse", ImmutableMap.of(
+                        "connection-url", clickhouseServer.getJdbcUrl(),
+                        "connection-user", user,
+                        "connection-password", "insert",
+                        "clickhouse.map-string-as-varchar", "true",
+                        "insert.non-transactional-insert.enabled", "true"));
+
+                assertUpdate("INSERT INTO %s.%s VALUES (1, 'a'), (2, 'b')".formatted(catalog, table.getName()), 2);
+                assertQuery("SELECT * FROM " + table.getName(), "VALUES (1, 'a'), (2, 'b')");
+            }
+            finally {
+                onRemoteDatabase().execute("DROP USER " + user);
+            }
+        }
+    }
+
+    @Test
     public void testInsertNestedArray()
     {
         try (TestTable table = newTrinoTable("test_insert_nested_array_", "(a ARRAY<ARRAY<INTEGER>>)")) {
