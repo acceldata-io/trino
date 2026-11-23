@@ -233,6 +233,14 @@ to the following table:
 * - `DateTime[(timezone)]`
   - `TIMESTAMP(0) [WITH TIME ZONE]`
   -
+* - `DateTime64(p)`
+  - `TIMESTAMP(p)`
+  - Precision `p` from 0 to 9 is read and written in full.
+* - `DateTime64(p, timezone)`
+  - `TIMESTAMP(p) WITH TIME ZONE`
+  - Values are returned with the offset of the column time zone. Values are
+    transferred in UTC, so times repeated when clocks are set back keep their
+    instant.
 * - `IPv4`
   - `IPADDRESS`
   -
