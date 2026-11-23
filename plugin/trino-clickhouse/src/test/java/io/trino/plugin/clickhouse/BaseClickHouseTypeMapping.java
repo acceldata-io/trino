@@ -893,6 +893,8 @@ public abstract class BaseClickHouseTypeMapping
         try (TestTable table = new TestTable(onRemoteDatabase(), "tpch.test_string_bytes", "(s String, fs FixedString(4)) ENGINE=Log", ImmutableList.of("unhex('0001FF'), unhex('0001FF')"))) {
             assertThat(query(mapStringAsVarcharSession(), "SELECT to_utf8(s), to_utf8(fs) FROM " + table.getName()))
                     .matches("VALUES (X'0001FF', X'0001FF00')");
+            assertThat(query(mapStringAsVarcharSession(), "SELECT s, fs FROM " + table.getName()))
+                    .matches("VALUES (CAST(U&'\\0000\\0001\\FFFD' AS varchar), CAST(U&'\\0000\\0001\\FFFD\\0000' AS varchar))");
         }
     }
 

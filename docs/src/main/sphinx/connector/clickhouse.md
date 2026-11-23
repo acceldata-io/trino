@@ -223,12 +223,14 @@ to the following table:
   - `VARBINARY`
   - Enabling `clickhouse.map-string-as-varchar` config property changes the
     mapping to `VARCHAR`. The bytes are read unchanged, including bytes that
-    are not valid UTF-8.
+    are not valid UTF-8. Query results show such bytes as the replacement
+    character U+FFFD, and {func}`to_utf8` returns the original bytes.
 * - `String`
   - `VARBINARY`
   - Enabling `clickhouse.map-string-as-varchar` config property changes the
     mapping to `VARCHAR`. The bytes are read unchanged, including bytes that
-    are not valid UTF-8.
+    are not valid UTF-8. Query results show such bytes as the replacement
+    character U+FFFD, and {func}`to_utf8` returns the original bytes.
 * - `Date`
   - `DATE`
   -
