@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static io.trino.spi.connector.SchemaTableName.caseSensitiveSchemaTableName;
 import static io.trino.spi.security.PrincipalType.USER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -191,6 +192,21 @@ final class TestRangerSystemAccessControl
         assertThatThrownBy(() -> accessControlManager.checkCanInsertIntoTable(context(BOB), TABLE_ALICE_SCH1_TBL1)).isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> accessControlManager.checkCanDeleteFromTable(context(BOB), TABLE_ALICE_SCH1_TBL1)).isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> accessControlManager.checkCanTruncateTable(context(BOB), TABLE_ALICE_SCH1_TBL1)).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void testCaseSensitiveTableNames()
+    {
+        assertThat(RangerTrinoResource.quoteIfCaseSensitive("tbl1")).isEqualTo("tbl1");
+        assertThat(RangerTrinoResource.quoteIfCaseSensitive("TBL1")).isEqualTo("\"TBL1");
+
+        CatalogSchemaTableName upperCaseTable = new CatalogSchemaTableName(CATALOG_ALICE, caseSensitiveSchemaTableName("sch1", "TBL1"));
+        accessControlManager.checkCanDropTable(context(ALICE), TABLE_ALICE_SCH1_TBL1);
+        // the policy for tbl1 does not cover a table whose name differs only by case
+        assertThatThrownBy(() -> accessControlManager.checkCanDropTable(context(ALICE), upperCaseTable)).isInstanceOf(AccessDeniedException.class);
+
+        Set<SchemaTableName> tables = ImmutableSet.of(TABLE_ALICE_SCH1_TBL1.getSchemaTableName(), upperCaseTable.getSchemaTableName());
+        assertThat(accessControlManager.filterTables(context(ALICE), CATALOG_ALICE, tables)).containsExactly(TABLE_ALICE_SCH1_TBL1.getSchemaTableName());
     }
 
     @Test

@@ -98,6 +98,7 @@ import static io.trino.plugin.jdbc.StandardColumnMappings.varcharReadFunction;
 import static io.trino.plugin.jdbc.TypeHandlingJdbcSessionProperties.getUnsupportedTypeHandling;
 import static io.trino.plugin.jdbc.UnsupportedTypeHandling.IGNORE;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
+import static io.trino.spi.connector.SchemaTableName.caseSensitiveSchemaTableName;
 import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
 import static java.lang.Boolean.TRUE;
 import static java.lang.String.CASE_INSENSITIVE_ORDER;
@@ -212,7 +213,7 @@ public abstract class BaseJdbcClient
                     String tableSchema = identifierMapping.fromRemoteSchemaName(remoteSchemaFromResultSet);
                     String tableName = identifierMapping.fromRemoteTableName(remoteSchemaFromResultSet, resultSet.getString("TABLE_NAME"));
                     if (filterSchema(tableSchema)) {
-                        list.add(RelationCommentMetadata.forRelation(new SchemaTableName(tableSchema, tableName), getTableComment(resultSet)));
+                        list.add(RelationCommentMetadata.forRelation(caseSensitiveSchemaTableName(tableSchema, tableName), getTableComment(resultSet)));
                     }
                 }
                 return list.build();
@@ -446,7 +447,7 @@ public abstract class BaseJdbcClient
                             String remoteSchemaFromResultSet = getTableSchemaName(resultSet);
                             currentTableVisible = visibleTables.contains(nextTable);
                             if (currentTableVisible) {
-                                currentTableName = new SchemaTableName(
+                                currentTableName = caseSensitiveSchemaTableName(
                                         identifierMapping.fromRemoteSchemaName(remoteSchemaFromResultSet),
                                         identifierMapping.fromRemoteTableName(remoteSchemaFromResultSet, resultSet.getString("TABLE_NAME")));
                                 currentTableColumns = ImmutableList.builder();
@@ -1059,12 +1060,16 @@ public abstract class BaseJdbcClient
             finishInsertTable(session, handle, pageSinkIds);
         }
         else {
+            RemoteTableName remoteTableName = handle.getRemoteTableName();
+            String remoteSchema = remoteTableName.getSchemaName().orElseThrow();
             renameTable(
                     session,
-                    handle.getRemoteTableName().getCatalogName().orElse(null),
-                    handle.getRemoteTableName().getSchemaName().orElse(null),
+                    remoteTableName.getCatalogName().orElse(null),
+                    remoteTableName.getSchemaName().orElse(null),
                     handle.getTemporaryTableName().orElseThrow(() -> new IllegalStateException("Temporary table name missing")),
-                    handle.getRemoteTableName().getSchemaTableName());
+                    caseSensitiveSchemaTableName(
+                            identifierMapping.fromRemoteSchemaName(remoteSchema),
+                            identifierMapping.fromRemoteTableName(remoteSchema, remoteTableName.getTableName())));
         }
     }
 

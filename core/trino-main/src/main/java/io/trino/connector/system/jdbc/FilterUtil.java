@@ -48,18 +48,34 @@ public final class FilterUtil
 
     public static boolean isImpossibleObjectName(Domain domain)
     {
+        return isImpossibleObjectName(domain, false);
+    }
+
+    /**
+     * @param caseSensitiveNames whether the catalog has case-sensitive schema and table names
+     */
+    public static boolean isImpossibleObjectName(Domain domain, boolean caseSensitiveNames)
+    {
         if (!domain.isNullableDiscreteSet()) {
             return false;
         }
         DiscreteSet discreteSet = domain.getNullableDiscreteSet();
         return discreteSet.getNonNullValues().stream()
-                .allMatch(element -> isImpossibleObjectName(((Slice) element).toStringUtf8()));
+                .allMatch(element -> isImpossibleObjectName(((Slice) element).toStringUtf8(), caseSensitiveNames));
     }
 
     public static boolean isImpossibleObjectName(String candidate)
     {
+        return isImpossibleObjectName(candidate, false);
+    }
+
+    /**
+     * @param caseSensitiveNames whether the catalog has case-sensitive schema and table names
+     */
+    public static boolean isImpossibleObjectName(String candidate, boolean caseSensitiveNames)
+    {
         return candidate.equals("") ||
-                // TODO (https://github.com/trinodb/trino/issues/17) Currently all object names are lowercase in Trino
-                !candidate.equals(candidate.toLowerCase(ENGLISH));
+                // TODO (https://github.com/trinodb/trino/issues/17) Object names are lowercase unless the catalog has case-sensitive names
+                (!caseSensitiveNames && !candidate.equals(candidate.toLowerCase(ENGLISH)));
     }
 }

@@ -63,6 +63,8 @@ import static io.trino.plugin.base.security.TableAccessControlRule.TablePrivileg
 import static io.trino.plugin.base.security.TableAccessControlRule.TablePrivilege.SELECT;
 import static io.trino.plugin.base.security.TableAccessControlRule.TablePrivilege.UPDATE;
 import static io.trino.spi.StandardErrorCode.INVALID_COLUMN_MASK;
+import static io.trino.spi.connector.CatalogSchemaName.caseSensitiveCatalogSchemaName;
+import static io.trino.spi.connector.SchemaTableName.caseSensitiveSchemaTableName;
 import static io.trino.spi.security.AccessDeniedException.denyAddColumn;
 import static io.trino.spi.security.AccessDeniedException.denyAlterColumn;
 import static io.trino.spi.security.AccessDeniedException.denyCommentColumn;
@@ -571,7 +573,7 @@ public class FileBasedSystemAccessControl
     public Set<SchemaTableName> filterTables(SystemSecurityContext context, String catalogName, Set<SchemaTableName> tableNames)
     {
         return tableNames.stream()
-                .filter(tableName -> isSchemaOwner(context, new CatalogSchemaName(catalogName, tableName.getSchemaName())) ||
+                .filter(tableName -> isSchemaOwner(context, caseSensitiveCatalogSchemaName(catalogName, tableName.getSchemaName())) ||
                         checkAnyTablePermission(context, new CatalogSchemaTableName(catalogName, tableName)))
                 .collect(toImmutableSet());
     }

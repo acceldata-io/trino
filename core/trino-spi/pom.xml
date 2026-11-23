@@ -332,6 +332,13 @@
                                     <new>interface io.opentelemetry.api.trace.TraceFlagsBuilder</new>
                                     <justification>New type introduced in opentelemetry-api 1.62.0 transitively exposed via ExchangeManagerContext; not a breaking change for ODP consumers</justification>
                                 </item>
+                                <item>
+                                    <ignore>true</ignore>
+                                    <regex>true</regex>
+                                    <code>java\.annotation\.removed</code>
+                                    <old>(method|parameter) void io\.trino\.spi\.connector\.(SchemaTableName|CatalogSchemaName)::&lt;init&gt;\(.*\)</old>
+                                    <justification>JSON creation moved to factories that keep the case of quoted schema and table names (XDP-3084)</justification>
+                                </item>
                             </differences>
                         </revapi.differences>
                     </analysisConfiguration>

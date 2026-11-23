@@ -363,6 +363,7 @@ import static io.trino.spi.StandardErrorCode.TYPE_MISMATCH;
 import static io.trino.spi.StandardErrorCode.UNSUPPORTED_SUBQUERY;
 import static io.trino.spi.StandardErrorCode.VIEW_IS_RECURSIVE;
 import static io.trino.spi.StandardErrorCode.VIEW_IS_STALE;
+import static io.trino.spi.connector.CatalogSchemaName.caseSensitiveCatalogSchemaName;
 import static io.trino.spi.connector.MaterializedViewFreshness.Freshness.FRESH;
 import static io.trino.spi.connector.StandardWarningCode.REDUNDANT_ORDER_BY;
 import static io.trino.spi.function.FunctionKind.AGGREGATE;
@@ -565,7 +566,7 @@ class StatementAnalyzer
         @Override
         protected Scope visitInsert(Insert insert, Optional<Scope> scope)
         {
-            QualifiedObjectName targetTable = createQualifiedObjectName(session, insert, insert.getTarget());
+            QualifiedObjectName targetTable = createQualifiedObjectName(session, insert, insert.getTarget(), metadata);
 
             if (metadata.isMaterializedView(session, targetTable)) {
                 throw semanticException(NOT_SUPPORTED, insert, "Inserting into materialized views is not supported");
@@ -814,7 +815,7 @@ class StatementAnalyzer
         protected Scope visitDelete(Delete node, Optional<Scope> scope)
         {
             Table table = node.getTable();
-            QualifiedObjectName originalName = createQualifiedObjectName(session, table, table.getName());
+            QualifiedObjectName originalName = createQualifiedObjectName(session, table, table.getName(), metadata);
             if (metadata.isMaterializedView(session, originalName)) {
                 throw semanticException(NOT_SUPPORTED, node, "Deleting from materialized views is not supported");
             }
@@ -860,7 +861,7 @@ class StatementAnalyzer
         @Override
         protected Scope visitAnalyze(Analyze node, Optional<Scope> scope)
         {
-            QualifiedObjectName tableName = createQualifiedObjectName(session, node, node.getTableName());
+            QualifiedObjectName tableName = createQualifiedObjectName(session, node, node.getTableName(), metadata);
             if (metadata.isView(session, tableName)) {
                 throw semanticException(NOT_SUPPORTED, node, "Analyzing views is not supported");
             }
@@ -908,7 +909,7 @@ class StatementAnalyzer
         protected Scope visitCreateTableAsSelect(CreateTableAsSelect node, Optional<Scope> scope)
         {
             // turn this into a query that has a new table writer node on top.
-            QualifiedObjectName targetTable = createQualifiedObjectName(session, node, node.getName());
+            QualifiedObjectName targetTable = createQualifiedObjectName(session, node, node.getName(), metadata);
 
             Optional<TableHandle> targetTableHandle = metadata.getTableHandle(session, targetTable);
             if (targetTableHandle.isPresent() && node.getSaveMode() != REPLACE) {
@@ -1229,7 +1230,7 @@ class StatementAnalyzer
         protected Scope visitTableExecute(TableExecute node, Optional<Scope> scope)
         {
             Table table = node.getTable();
-            QualifiedObjectName originalName = createQualifiedObjectName(session, table, table.getName());
+            QualifiedObjectName originalName = createQualifiedObjectName(session, table, table.getName(), metadata);
             String procedureName = node.getProcedureName().getCanonicalValue();
 
             if (metadata.isMaterializedView(session, originalName)) {
@@ -2255,7 +2256,7 @@ class StatementAnalyzer
                 }
             }
 
-            QualifiedObjectName name = createQualifiedObjectName(session, table, table.getName());
+            QualifiedObjectName name = createQualifiedObjectName(session, table, table.getName(), metadata);
             analysis.setRelationName(table, QualifiedName.of(name.catalogName(), name.schemaName(), name.objectName()));
 
             Optional<MaterializedViewDefinition> optionalMaterializedView = metadata.getMaterializedView(session, name);
@@ -2291,7 +2292,7 @@ class StatementAnalyzer
 
             if (tableHandle.isEmpty()) {
                 getRequiredCatalogHandle(metadata, session, table, targetTableName.catalogName());
-                if (!metadata.schemaExists(session, new CatalogSchemaName(targetTableName.catalogName(), targetTableName.schemaName()))) {
+                if (!metadata.schemaExists(session, caseSensitiveCatalogSchemaName(targetTableName.catalogName(), targetTableName.schemaName()))) {
                     throw semanticException(SCHEMA_NOT_FOUND, table, "Schema '%s' does not exist", targetTableName.schemaName());
                 }
                 throw semanticException(TABLE_NOT_FOUND, table, "Table '%s' does not exist", targetTableName);
@@ -3369,7 +3370,7 @@ class StatementAnalyzer
         protected Scope visitUpdate(Update update, Optional<Scope> scope)
         {
             Table table = update.getTable();
-            QualifiedObjectName originalName = createQualifiedObjectName(session, table, table.getName());
+            QualifiedObjectName originalName = createQualifiedObjectName(session, table, table.getName(), metadata);
             if (metadata.isMaterializedView(session, originalName)) {
                 throw semanticException(NOT_SUPPORTED, update, "Updating materialized views is not supported");
             }
@@ -3499,7 +3500,7 @@ class StatementAnalyzer
         {
             Relation relation = merge.getTarget();
             Table table = getMergeTargetTable(relation);
-            QualifiedObjectName originalTableName = createQualifiedObjectName(session, table, table.getName());
+            QualifiedObjectName originalTableName = createQualifiedObjectName(session, table, table.getName(), metadata);
             if (metadata.isMaterializedView(session, originalTableName)) {
                 throw semanticException(NOT_SUPPORTED, merge, "Merging into materialized views is not supported");
             }

@@ -92,7 +92,7 @@ public class AddColumnTask
             WarningCollector warningCollector)
     {
         Session session = stateMachine.getSession();
-        QualifiedObjectName originalTableName = createQualifiedObjectName(session, statement, statement.getName());
+        QualifiedObjectName originalTableName = createQualifiedObjectName(session, statement, statement.getName(), plannerContext.getMetadata());
         RedirectionAwareTableHandle redirectionAwareTableHandle = plannerContext.getMetadata().getRedirectionAwareTableHandle(session, originalTableName);
         if (redirectionAwareTableHandle.tableHandle().isEmpty()) {
             if (!statement.isTableExists()) {
