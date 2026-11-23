@@ -14,6 +14,7 @@
 package io.trino.server.protocol;
 
 import com.google.common.collect.ImmutableList;
+import io.airlift.slice.Slice;
 import io.trino.Session;
 import io.trino.client.ClientCapabilities;
 import io.trino.client.CloseableIterator;
@@ -52,6 +53,7 @@ import java.util.Map;
 
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static io.airlift.slice.Slices.utf8Slice;
+import static io.airlift.slice.Slices.wrappedBuffer;
 import static io.trino.SessionTestUtils.TEST_SESSION;
 import static io.trino.block.BlockAssertions.createBlockOfReals;
 import static io.trino.block.BlockAssertions.createBooleansBlock;
@@ -321,6 +323,52 @@ public class TestJsonEncodingUtils
 
         assertThat(roundTrip(columns, page, "[[\"数据应用\"],[\"\\\"quoted\\\"\"],[\"zażółć gęślą jaźń\"],[\"\\u0000\\u0000\\u0000\"],[\"\\r\\t\\n\"],[\"🦃\"]]"))
                 .isEqualTo(column("数据应用", "\"quoted\"", "zażółć gęślą jaźń", "\0\0\0", "\r\t\n", "🦃"));
+    }
+
+    @Test
+    public void testVarcharInvalidUtf8Serialization()
+            throws IOException
+    {
+        List<TypedColumn> columns = ImmutableList.of(typed("col0", VARCHAR));
+        BlockBuilder blockBuilder = VARCHAR.createBlockBuilder(null, 5);
+        VARCHAR.writeSlice(blockBuilder, wrappedBuffer((byte) 0x00, (byte) 0x01, (byte) 0xFF));
+        VARCHAR.writeSlice(blockBuilder, wrappedBuffer((byte) 'a', (byte) 0xFF, (byte) 'b'));
+        // truncated encoding of '€' (E2 82 AC)
+        VARCHAR.writeSlice(blockBuilder, wrappedBuffer((byte) 'a', (byte) 0xE2, (byte) 0x82));
+        VARCHAR.writeSlice(blockBuilder, utf8Slice("zażółć"));
+        blockBuilder.appendNull();
+        Page page = page(blockBuilder.build());
+
+        assertThat(roundTrip(columns, page, "[[\"\\u0000\\u0001\uFFFD\"],[\"a\uFFFDb\"],[\"a\uFFFD\"],[\"zażółć\"],[null]]"))
+                .isEqualTo(column("\0\u0001\uFFFD", "a\uFFFDb", "a\uFFFD", "zażółć", null));
+    }
+
+    @Test
+    public void testVarcharInvalidUtf8InNestedTypesSerialization()
+            throws IOException
+    {
+        ArrayType arrayType = new ArrayType(VARCHAR);
+        RowType rowType = RowType.rowType(RowType.field("a", VARCHAR));
+        MapType mapType = new MapType(VARCHAR, VARCHAR, new TypeOperators());
+        List<TypedColumn> columns = ImmutableList.of(typed("col0", arrayType), typed("col1", rowType), typed("col2", mapType));
+        Slice invalid = wrappedBuffer((byte) 'a', (byte) 0xFF);
+
+        ArrayBlockBuilder arrayBlockBuilder = arrayType.createBlockBuilder(null, 1);
+        arrayBlockBuilder.buildEntry(builder -> VARCHAR.writeSlice(builder, invalid));
+        RowBlockBuilder rowBlockBuilder = rowType.createBlockBuilder(null, 1);
+        rowBlockBuilder.buildEntry(builders -> VARCHAR.writeSlice(builders.getFirst(), invalid));
+        MapBlockBuilder mapBlockBuilder = mapType.createBlockBuilder(null, 1);
+        mapBlockBuilder.buildEntry((keyBuilder, valueBuilder) -> {
+            VARCHAR.writeSlice(keyBuilder, invalid);
+            VARCHAR.writeSlice(valueBuilder, invalid);
+        });
+
+        Page page = page(arrayBlockBuilder.build(), rowBlockBuilder.build(), mapBlockBuilder.build());
+        assertThat(roundTrip(columns, page, "[[[\"a\uFFFD\"],[\"a\uFFFD\"],{\"a\uFFFD\":\"a\uFFFD\"}]]"))
+                .containsExactly(List.of(
+                        List.of("a\uFFFD"),
+                        Row.builderWithExpectedSize(1).addField("a", "a\uFFFD").build(),
+                        Map.of("a\uFFFD", "a\uFFFD")));
     }
 
     @Test
