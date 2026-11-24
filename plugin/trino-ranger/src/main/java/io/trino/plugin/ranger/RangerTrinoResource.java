@@ -115,7 +115,7 @@ class RangerTrinoResource
         RangerTrinoResource ret = new RangerTrinoResource();
 
         ret.setValue(KEY_CATALOG, catalogName);
-        ret.setValue(KEY_SCHEMA, schema);
+        ret.setValue(KEY_SCHEMA, quoteIfCaseSensitive(schema));
         ret.setValue(KEY_PROCEDURE, procedure);
 
         return ret;
@@ -126,7 +126,7 @@ class RangerTrinoResource
         RangerTrinoResource ret = new RangerTrinoResource();
 
         ret.setValue(KEY_CATALOG, catalogName);
-        ret.setValue(KEY_SCHEMA, schema);
+        ret.setValue(KEY_SCHEMA, quoteIfCaseSensitive(schema));
         ret.setValue(KEY_SCHEMA_FUNCTION, functionName);
 
         return ret;
@@ -145,7 +145,8 @@ class RangerTrinoResource
     /**
      * Schema and table names with uppercase letters only come from catalogs with case-sensitive names.
      * A leading quote keeps them apart from policies on the lowercase name, and Ranger matches such
-     * values case-sensitively when the resource definition sets {@code quotedCaseSensitive}.
+     * values case-sensitively, because the plugin sets {@code quotedCaseSensitive} on the schema and
+     * table resources.
      */
     static String quoteIfCaseSensitive(String name)
     {

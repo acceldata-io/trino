@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static io.trino.spi.connector.CatalogSchemaName.caseSensitiveCatalogSchemaName;
 import static io.trino.spi.connector.SchemaTableName.caseSensitiveSchemaTableName;
 import static io.trino.spi.security.PrincipalType.USER;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -207,6 +208,28 @@ final class TestRangerSystemAccessControl
 
         Set<SchemaTableName> tables = ImmutableSet.of(TABLE_ALICE_SCH1_TBL1.getSchemaTableName(), upperCaseTable.getSchemaTableName());
         assertThat(accessControlManager.filterTables(context(ALICE), CATALOG_ALICE, tables)).containsExactly(TABLE_ALICE_SCH1_TBL1.getSchemaTableName());
+
+        assertThat(RangerTrinoResource.forSchemaProcedure(CATALOG_ALICE, "Sales", "proc1").getValue(RangerTrinoResource.KEY_SCHEMA)).isEqualTo("\"Sales");
+        assertThat(RangerTrinoResource.forSchemaFunction(CATALOG_ALICE, "Sales", "func1").getValue(RangerTrinoResource.KEY_SCHEMA)).isEqualTo("\"Sales");
+    }
+
+    @Test
+    void testNamesDifferingOnlyByCase()
+    {
+        // The embedded Trino service definition matches schema and table names ignoring case,
+        // so the policies on "Customers and "Sales only keep their case with quotedCaseSensitive
+        CatalogSchemaTableName customers = new CatalogSchemaTableName(CATALOG_ALICE, caseSensitiveSchemaTableName("sch1", "Customers"));
+        CatalogSchemaTableName upperCaseCustomers = new CatalogSchemaTableName(CATALOG_ALICE, caseSensitiveSchemaTableName("sch1", "CUSTOMERS"));
+        accessControlManager.checkCanDropTable(context(ALICE), customers);
+        assertThatThrownBy(() -> accessControlManager.checkCanDropTable(context(ALICE), upperCaseCustomers)).isInstanceOf(AccessDeniedException.class);
+        Set<SchemaTableName> tables = ImmutableSet.of(customers.getSchemaTableName(), upperCaseCustomers.getSchemaTableName());
+        assertThat(accessControlManager.filterTables(context(ALICE), CATALOG_ALICE, tables)).containsExactly(customers.getSchemaTableName());
+
+        CatalogSchemaName sales = caseSensitiveCatalogSchemaName(CATALOG_ALICE, "Sales");
+        CatalogSchemaName upperCaseSales = caseSensitiveCatalogSchemaName(CATALOG_ALICE, "SALES");
+        accessControlManager.checkCanDropSchema(context(ALICE), sales);
+        assertThatThrownBy(() -> accessControlManager.checkCanDropSchema(context(ALICE), upperCaseSales)).isInstanceOf(AccessDeniedException.class);
+        assertThat(accessControlManager.filterSchemas(context(ALICE), CATALOG_ALICE, ImmutableSet.of("Sales", "SALES"))).containsExactly("Sales");
     }
 
     @Test

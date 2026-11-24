@@ -14,6 +14,8 @@
 package io.trino.plugin.ranger;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.inject.Inject;
 import io.airlift.log.Logger;
 import io.trino.spi.QueryId;
@@ -41,6 +43,7 @@ import org.apache.ranger.plugin.model.RangerServiceDef;
 import org.apache.ranger.plugin.policyengine.RangerAccessRequest;
 import org.apache.ranger.plugin.policyengine.RangerAccessResult;
 import org.apache.ranger.plugin.service.RangerBasePlugin;
+import org.apache.ranger.plugin.util.ServicePolicies;
 
 import java.io.File;
 import java.net.URL;
@@ -48,6 +51,7 @@ import java.security.Principal;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +73,8 @@ import static io.trino.plugin.ranger.RangerTrinoAccessType.SELECT;
 import static io.trino.plugin.ranger.RangerTrinoAccessType.SHOW;
 import static io.trino.plugin.ranger.RangerTrinoAccessType.WRITE_SYSINFO;
 import static io.trino.plugin.ranger.RangerTrinoAccessType._ANY;
+import static io.trino.plugin.ranger.RangerTrinoResource.KEY_SCHEMA;
+import static io.trino.plugin.ranger.RangerTrinoResource.KEY_TABLE;
 import static io.trino.spi.security.AccessDeniedException.denyAddColumn;
 import static io.trino.spi.security.AccessDeniedException.denyAlterColumn;
 import static io.trino.spi.security.AccessDeniedException.denyCommentColumn;
@@ -122,6 +128,7 @@ import static io.trino.spi.security.AccessDeniedException.denyUpdateTableColumns
 import static io.trino.spi.security.AccessDeniedException.denyWriteSystemInformationAccess;
 import static java.util.Objects.requireNonNullElse;
 import static java.util.function.Predicate.not;
+import static org.apache.ranger.plugin.resourcematcher.RangerAbstractResourceMatcher.OPTION_QUOTED_CASE_SENSITIVE;
 
 public class RangerSystemAccessControl
         implements SystemAccessControl
@@ -151,7 +158,7 @@ public class RangerSystemAccessControl
         UserGroupInformation.setConfiguration(hadoopConf);
         RangerPluginConfig pluginConfig = new RangerPluginConfig(RANGER_TRINO_SERVICETYPE, config.getServiceName(), RANGER_TRINO_APPID, null, null, config.getPluginConfigResource(), null);
 
-        rangerPlugin = new RangerBasePlugin(pluginConfig);
+        rangerPlugin = new CaseSensitiveNamesRangerPlugin(pluginConfig);
         rangerPlugin.init();
         rangerPlugin.setResultProcessor(new RangerDefaultAuditHandler());
     }
@@ -1009,5 +1016,34 @@ public class RangerSystemAccessControl
         }
 
         return Identity.ofUser("");
+    }
+
+    // The Trino service definition matches schema and table names ignoring case. Names that keep their case are sent
+    // with a leading quote, and quotedCaseSensitive matches such values case-sensitively, so that Customers and
+    // CUSTOMERS are covered by different policies whatever service definition the Ranger admin has.
+    private static class CaseSensitiveNamesRangerPlugin
+            extends RangerBasePlugin
+    {
+        private static final Set<String> CASE_SENSITIVE_RESOURCES = ImmutableSet.of(KEY_SCHEMA, KEY_TABLE);
+
+        public CaseSensitiveNamesRangerPlugin(RangerPluginConfig pluginConfig)
+        {
+            super(pluginConfig);
+        }
+
+        @Override
+        public void setPolicies(ServicePolicies policies)
+        {
+            if (policies != null && policies.getServiceDef() != null) {
+                for (RangerServiceDef.RangerResourceDef resource : policies.getServiceDef().getResources()) {
+                    if (CASE_SENSITIVE_RESOURCES.contains(resource.getName())) {
+                        Map<String, String> matcherOptions = new HashMap<>(requireNonNullElse(resource.getMatcherOptions(), ImmutableMap.of()));
+                        matcherOptions.put(OPTION_QUOTED_CASE_SENSITIVE, "true");
+                        resource.setMatcherOptions(matcherOptions);
+                    }
+                }
+            }
+            super.setPolicies(policies);
+        }
     }
 }
