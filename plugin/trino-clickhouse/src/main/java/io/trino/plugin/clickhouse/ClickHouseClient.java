@@ -806,12 +806,12 @@ public class ClickHouseClient
                 int decimalDigits = typeHandle.requiredDecimalDigits();
                 int precision = typeHandle.requiredColumnSize();
                 if (precision <= Decimals.MAX_PRECISION) {
+                    DecimalType decimalType = createDecimalType(precision, max(decimalDigits, 0));
                     yield Optional.of(ColumnMapping.mapping(
-                            createDecimalType(precision, max(decimalDigits, 0)),
-                            decimalColumnMapping(createDecimalType(precision, max(decimalDigits, 0))).getReadFunction(),
-                            decimalColumnMapping(createDecimalType(precision, max(decimalDigits, 0))).getWriteFunction(),
-                            // TODO (https://github.com/trinodb/trino/issues/7100) fix, enable and test decimal pushdown
-                            DISABLE_PUSHDOWN));
+                            decimalType,
+                            decimalColumnMapping(decimalType).getReadFunction(),
+                            decimalWriteFunction(decimalType),
+                            FULL_PUSHDOWN));
                 }
                 switch (getDecimalRounding(session)) {
                     case MAP_TO_NUMBER -> {
@@ -826,7 +826,8 @@ public class ClickHouseClient
                                 createDecimalType(Decimals.MAX_PRECISION, scale),
                                 decimalColumnMapping(createDecimalType(Decimals.MAX_PRECISION, scale), getDecimalRoundingMode(session)).getReadFunction(),
                                 decimalColumnMapping(createDecimalType(Decimals.MAX_PRECISION, scale), getDecimalRoundingMode(session)).getWriteFunction(),
-                                // TODO (https://github.com/trinodb/trino/issues/7100) fix, enable and test decimal pushdown
+                                // Trino rounds these values to precision 38, so they differ from the values in ClickHouse,
+                                // and a filter evaluated by ClickHouse would return different rows
                                 DISABLE_PUSHDOWN));
                     }
                 }
@@ -1042,6 +1043,51 @@ public class ClickHouseClient
                     UINT64.validate(version, bigDecimal);
                     statement.setBigDecimal(index, bigDecimal);
                 });
+    }
+
+    // The JDBC driver sends a BigDecimal as a numeric literal, which ClickHouse parses as Float64 and compares inexactly
+    // with Decimal columns, so values are sent as text and cast to the column type.
+    private static WriteFunction decimalWriteFunction(DecimalType decimalType)
+    {
+        String bindExpression = "CAST(? AS Decimal(%s, %s))".formatted(decimalType.getPrecision(), decimalType.getScale());
+        if (decimalType.isShort()) {
+            return new LongWriteFunction()
+            {
+                @Override
+                public String getBindExpression()
+                {
+                    return bindExpression;
+                }
+
+                @Override
+                public void set(PreparedStatement statement, int index, long value)
+                        throws SQLException
+                {
+                    statement.setString(index, BigDecimal.valueOf(value, decimalType.getScale()).toPlainString());
+                }
+            };
+        }
+        return new ObjectWriteFunction()
+        {
+            @Override
+            public Class<?> getJavaType()
+            {
+                return Int128.class;
+            }
+
+            @Override
+            public String getBindExpression()
+            {
+                return bindExpression;
+            }
+
+            @Override
+            public void set(PreparedStatement statement, int index, Object value)
+                    throws SQLException
+            {
+                statement.setString(index, new BigDecimal(((Int128) value).toBigInteger(), decimalType.getScale()).toPlainString());
+            }
+        };
     }
 
     private static ColumnMapping numberColumnMapping()
