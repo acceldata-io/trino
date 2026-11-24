@@ -494,6 +494,10 @@ The connector supports pushdown for a number of operations:
 - {func}`min`
 - {func}`sum`
 
+Filters on `Decimal` columns are pushed down. Columns with a precision above 38
+are an exception: they are mapped to `NUMBER`, or rounded to `DECIMAL(38, s)`
+with `decimal-mapping` set to `ALLOW_OVERFLOW`, and Trino applies the filters.
+
 
 ```{include} pushdown-correctness-behavior.fragment
 ```
