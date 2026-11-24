@@ -124,10 +124,11 @@ The following limitations apply:
 - Access control receives the exact names. Patterns in file-based access control
   are case-sensitive regular expressions. With Apache Ranger, a schema or table
   name that contains uppercase letters is sent with a leading double quote, for
-  example `"Customers`, so use that form in policy resources. To tell apart two
-  names that both contain uppercase letters, such as `Customers` and
-  `CUSTOMERS`, set `quotedCaseSensitive` for the schema and table resources of
-  the Trino service definition in Ranger.
+  example `"Customers`, so use that form in policy resources. Such values are
+  matched case-sensitively, so policies tell apart two names that differ only
+  by case, such as `Customers` and `CUSTOMERS`. Trino turns on
+  `quotedCaseSensitive` for the schema and table resources when it loads the
+  policies, so the Trino service definition in Ranger does not need changes.
 
 ## Querying ClickHouse
 
