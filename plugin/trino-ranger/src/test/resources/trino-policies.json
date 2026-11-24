@@ -300,6 +300,37 @@
       "policyItems": [
         { "accesses": [ { "type": "select" }, { "type": "insert" }, { "type": "create" }, { "type": "drop" }, { "type": "alter" }, { "type": "show" }, { "type": "grant" }, { "type": "revoke" } ], "users": [ "{USER}" ] }
       ]
+    },
+    {
+      "id":             30,
+      "service":        "dev_trino",
+      "serviceType":    "trino",
+      "name":           "alice-case-sensitive-table",
+      "policyType":     0,
+      "policyPriority": 0,
+      "resources": {
+        "catalog": { "values": [ "alice-catalog" ] },
+        "schema":  { "values": [ "sch1" ] },
+        "table":   { "values": [ "\"Customers" ] }
+      },
+      "policyItems": [
+        { "accesses": [ { "type": "select" }, { "type": "drop" }, { "type": "show" } ], "users": [ "alice" ] }
+      ]
+    },
+    {
+      "id":             31,
+      "service":        "dev_trino",
+      "serviceType":    "trino",
+      "name":           "alice-case-sensitive-schema",
+      "policyType":     0,
+      "policyPriority": 0,
+      "resources": {
+        "catalog": { "values": [ "alice-catalog" ] },
+        "schema":  { "values": [ "\"Sales" ] }
+      },
+      "policyItems": [
+        { "accesses": [ { "type": "drop" }, { "type": "show" } ], "users": [ "alice" ] }
+      ]
     }
   ]
 }
