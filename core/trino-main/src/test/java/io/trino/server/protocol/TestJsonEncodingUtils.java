@@ -327,12 +327,18 @@ public class TestJsonEncodingUtils
         VARCHAR.writeSlice(blockBuilder, wrappedBuffer((byte) 'a', (byte) 0xFF, (byte) 'b'));
         // truncated encoding of '€' (E2 82 AC)
         VARCHAR.writeSlice(blockBuilder, wrappedBuffer((byte) 'a', (byte) 0xE2, (byte) 0x82));
+        // encoding of the surrogate U+D800
+        VARCHAR.writeSlice(blockBuilder, wrappedBuffer((byte) 0xED, (byte) 0xA0, (byte) 0x80));
+        // overlong encoding of '/'
+        VARCHAR.writeSlice(blockBuilder, wrappedBuffer((byte) 0xC0, (byte) 0xAF));
+        // valid encoding of '🦃' (F0 9F A6 83) followed by an invalid byte
+        VARCHAR.writeSlice(blockBuilder, wrappedBuffer((byte) 0xF0, (byte) 0x9F, (byte) 0xA6, (byte) 0x83, (byte) 0xFF));
         VARCHAR.writeSlice(blockBuilder, utf8Slice("zażółć"));
         blockBuilder.appendNull();
         Page page = page(blockBuilder.build());
 
-        assertThat(roundTrip(columns, page, "[[\"\\u0000\\u0001\uFFFD\"],[\"a\uFFFDb\"],[\"a\uFFFD\"],[\"zażółć\"],[null]]"))
-                .isEqualTo(column("\0\u0001\uFFFD", "a\uFFFDb", "a\uFFFD", "zażółć", null));
+        assertThat(roundTrip(columns, page, "[[\"\\u0000\\u0001\uFFFD\"],[\"a\uFFFDb\"],[\"a\uFFFD\"],[\"\uFFFD\"],[\"\uFFFD\"],[\"🦃\uFFFD\"],[\"zażółć\"],[null]]"))
+                .isEqualTo(column("\0\u0001\uFFFD", "a\uFFFDb", "a\uFFFD", "\uFFFD", "\uFFFD", "🦃\uFFFD", "zażółć", null));
     }
 
     @Test
