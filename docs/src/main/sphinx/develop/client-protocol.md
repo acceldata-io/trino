@@ -82,7 +82,9 @@ class `io.trino.client.QueryResults` in module `trino-client` in the
 * - `data`
   - The `data` attribute contains a list of the rows returned by the query
     request. Each row is itself a list that holds values of the columns in the
-    row, in the order specified by the `columns` attribute.
+    row, in the order specified by the `columns` attribute. Bytes in `varchar`
+    values that are not valid UTF-8 are replaced with U+FFFD, as
+    {func}`from_utf8` does, because JSON text must be valid UTF-8.
 * - `updateType`
   - A human-readable string representing the operation. For a `CREATE TABLE`
     request, the `updateType` is "CREATE TABLE"; for `SET SESSION` it is "SET
