@@ -1030,10 +1030,18 @@ public abstract class BaseClickHouseTypeMapping
                     .addRoundTrip("DateTime('Asia/Kathmandu')", "timestamp '2024-01-01 12:34:56 Asia/Kathmandu'", TIMESTAMP_TZ_SECONDS, "TIMESTAMP '2024-01-01 12:34:56 +05:45'")
                     .addRoundTrip("DateTime('Asia/Kathmandu')", "timestamp '2024-01-01 12:34:56 +00:00'", TIMESTAMP_TZ_SECONDS, "TIMESTAMP '2024-01-01 18:19:56 +05:45'")
                     .addRoundTrip("DateTime('Asia/Kathmandu')", "timestamp '2024-01-01 12:34:56 -01:00'", TIMESTAMP_TZ_SECONDS, "TIMESTAMP '2024-01-01 19:19:56 +05:45'")
+                    // 01:30 occurs twice in New York on 2024-11-03
+                    .addRoundTrip("DateTime('America/New_York')", "timestamp '2024-11-03 05:30:00 UTC'", TIMESTAMP_TZ_SECONDS, "TIMESTAMP '2024-11-03 01:30:00 -04:00'")
+                    .addRoundTrip("DateTime('America/New_York')", "timestamp '2024-11-03 06:30:00 UTC'", TIMESTAMP_TZ_SECONDS, "TIMESTAMP '2024-11-03 01:30:00 -05:00'")
                     .execute(getQueryRunner(), session, clickhouseCreateAndTrinoInsert("tpch.test_timestamp_with_time_zone"));
 
             dateTimeWithTimeZoneTest(clickhouseDateTimeInputTypeFactory("datetime"))
                     .execute(getQueryRunner(), session, clickhouseCreateAndInsert("tpch.datetime_tz"));
+
+            SqlDataTypeTest.create()
+                    // the second 01:30 in New York on 2024-11-03
+                    .addRoundTrip("DateTime('America/New_York')", "toDateTime('2024-11-03 06:30:00', 'UTC')", TIMESTAMP_TZ_SECONDS, "TIMESTAMP '2024-11-03 01:30:00 -05:00'")
+                    .execute(getQueryRunner(), session, clickhouseCreateAndInsert("tpch.datetime_tz_doubled"));
         }
     }
 
@@ -1180,6 +1188,42 @@ public abstract class BaseClickHouseTypeMapping
     }
 
     @Test
+    public void testUnsupportedNestedValues()
+    {
+        testUnsupportedNestedValue(
+                "Array(DateTime('UTC'))",
+                "ARRAY[TIMESTAMP '1969-12-31 23:59:59 UTC']",
+                "Timestamp must be between %s and %s in ClickHouse: 1969-12-31 23:59:59".formatted(MIN_SUPPORTED_DATETIME_VALUE, MAX_SUPPORTED_DATETIME_VALUE));
+        testUnsupportedNestedValue(
+                "Array(DateTime64(3, 'Asia/Kathmandu'))",
+                "ARRAY[TIMESTAMP '2300-01-01 00:00:00.000 UTC']",
+                "Timestamp must be between 1900-01-01 00:00:00 and 2299-12-31 23:59:59.99999999 in ClickHouse: 2300-01-01 00:00:00");
+        testUnsupportedNestedValue(
+                "Map(String, DateTime64(9, 'UTC'))",
+                "MAP(ARRAY['a'], ARRAY[TIMESTAMP '2262-04-11 23:47:16.854775808 UTC'])",
+                "Timestamp must be between 1900-01-01 00:00:00 and 2262-04-11 23:47:16.854775807 in ClickHouse: 2262-04-11 23:47:16.854775808");
+        testUnsupportedNestedValue(
+                "Array(DateTime64(3))",
+                "ARRAY[TIMESTAMP '1899-12-31 23:59:59.999']",
+                "Timestamp must be between 1900-01-01 00:00:00 and 2299-12-31 23:59:59.99999999 in ClickHouse: 1899-12-31 23:59:59.999");
+        testUnsupportedNestedValue(
+                "Tuple(d Date)",
+                "CAST(ROW(DATE '1969-12-31') AS ROW(d date))",
+                "Date must be between 1970-01-01 and 2149-06-06 in ClickHouse: 1969-12-31");
+        testUnsupportedNestedValue(
+                "Array(UInt8)",
+                "ARRAY[SMALLINT '256']",
+                "Value must be between 0 and 255 in ClickHouse: 256");
+    }
+
+    private void testUnsupportedNestedValue(String clickHouseType, String value, String expectedMessage)
+    {
+        try (TestTable table = new TestTable(onRemoteDatabase(), "tpch.test_unsupported_nested", "(value %s) ENGINE=Log".formatted(clickHouseType))) {
+            assertQueryFails("INSERT INTO %s SELECT %s".formatted(table.getName(), value), expectedMessage);
+        }
+    }
+
+    @Test
     public void testArrayOfDateTime64()
     {
         SqlDataTypeTest.create()
@@ -1188,6 +1232,28 @@ public abstract class BaseClickHouseTypeMapping
                 .addRoundTrip("Array(DateTime64(9))", "['2024-01-02 03:04:05.123456789']", new ArrayType(createTimestampType(9)), "ARRAY[TIMESTAMP '2024-01-02 03:04:05.123456789']")
                 .addRoundTrip("Array(DateTime64(6, 'UTC'))", "['2024-01-02 03:04:05.123456']", new ArrayType(createTimestampWithTimeZoneType(6)), "ARRAY[TIMESTAMP '2024-01-02 03:04:05.123456 Z']")
                 .execute(getQueryRunner(), clickhouseCreateAndInsert("tpch.test_array_datetime64"));
+    }
+
+    @Test
+    public void testArrayOfDateTime64WithTimeZone()
+    {
+        SqlDataTypeTest.create()
+                .addRoundTrip("Array(DateTime64(3, 'Asia/Kathmandu'))", "[toDateTime64('2024-01-02 03:04:05.123', 3, 'UTC')]", new ArrayType(createTimestampWithTimeZoneType(3)), "ARRAY[TIMESTAMP '2024-01-02 08:49:05.123 +05:45']")
+                // the second 01:30 in New York on 2024-11-03
+                .addRoundTrip("Array(DateTime64(9, 'America/New_York'))", "[toDateTime64('2024-11-03 06:30:00.123456789', 9, 'UTC')]", new ArrayType(createTimestampWithTimeZoneType(9)), "ARRAY[TIMESTAMP '2024-11-03 01:30:00.123456789 -05:00']")
+                .execute(getQueryRunner(), clickhouseCreateAndInsert("tpch.test_array_datetime64_tz"));
+
+        SqlDataTypeTest.create()
+                .addRoundTrip("Array(DateTime64(6, 'UTC'))", "ARRAY[TIMESTAMP '2024-01-02 03:04:05.123456 +05:30']", new ArrayType(createTimestampWithTimeZoneType(6)), "ARRAY[TIMESTAMP '2024-01-01 21:34:05.123456 Z']")
+                .addRoundTrip("Array(Nullable(DateTime64(3, 'Asia/Kathmandu')))", "ARRAY[TIMESTAMP '2024-01-02 03:04:05.123 UTC', NULL]", new ArrayType(createTimestampWithTimeZoneType(3)), "ARRAY[TIMESTAMP '2024-01-02 08:49:05.123 +05:45', NULL]")
+                // 01:30 occurs twice in New York on 2024-11-03
+                .addRoundTrip(
+                        "Array(DateTime64(9, 'America/New_York'))",
+                        "ARRAY[TIMESTAMP '2024-11-03 05:30:00.123456789 UTC', TIMESTAMP '2024-11-03 06:30:00.123456789 UTC']",
+                        new ArrayType(createTimestampWithTimeZoneType(9)),
+                        "ARRAY[TIMESTAMP '2024-11-03 01:30:00.123456789 -04:00', TIMESTAMP '2024-11-03 01:30:00.123456789 -05:00']")
+                .addRoundTrip("Array(Array(DateTime64(3, 'Europe/Vilnius')))", "ARRAY[ARRAY[TIMESTAMP '2024-07-02 03:04:05.123 UTC']]", new ArrayType(new ArrayType(createTimestampWithTimeZoneType(3))), "ARRAY[ARRAY[TIMESTAMP '2024-07-02 06:04:05.123 +03:00']]")
+                .execute(getQueryRunner(), clickhouseCreateAndTrinoInsert("tpch.test_array_datetime64_tz"));
     }
 
     private List<ZoneId> timezones()
@@ -1276,7 +1342,18 @@ public abstract class BaseClickHouseTypeMapping
                 .addRoundTrip("Array(Date)", "['2024-01-01', '2024-06-15']", new ArrayType(DATE), "ARRAY[DATE '2024-01-01', DATE '2024-06-15']")
                 .addRoundTrip("Array(DateTime)", "['2024-01-01 12:00:00', '2024-06-15 00:00:00']", new ArrayType(createTimestampType(0)), "ARRAY[TIMESTAMP '2024-01-01 12:00:00', TIMESTAMP '2024-06-15 00:00:00']")
                 .addRoundTrip("Array(DateTime('UTC'))", "['2024-01-01 12:00:00', '2024-06-15 00:00:00']", new ArrayType(TIMESTAMP_TZ_SECONDS), "ARRAY[TIMESTAMP '2024-01-01 12:00:00 UTC', TIMESTAMP '2024-06-15 00:00:00 UTC']")
+                .addRoundTrip("Array(DateTime('Asia/Kathmandu'))", "['2024-01-01 12:00:00']", new ArrayType(TIMESTAMP_TZ_SECONDS), "ARRAY[TIMESTAMP '2024-01-01 12:00:00 +05:45']")
                 .execute(getQueryRunner(), clickhouseCreateAndInsert("tpch.test_array_datetime"));
+
+        SqlDataTypeTest.create()
+                .addRoundTrip("Array(Nullable(Date))", "ARRAY[DATE '2024-01-01', NULL]", new ArrayType(DATE), "ARRAY[DATE '2024-01-01', NULL]")
+                .addRoundTrip(
+                        "Array(DateTime('UTC'))",
+                        "ARRAY[TIMESTAMP '2024-01-01 12:00:00 UTC', TIMESTAMP '2024-06-15 00:00:00 +05:30']",
+                        new ArrayType(TIMESTAMP_TZ_SECONDS),
+                        "ARRAY[TIMESTAMP '2024-01-01 12:00:00 UTC', TIMESTAMP '2024-06-14 18:30:00 UTC']")
+                .addRoundTrip("Array(DateTime('Asia/Kathmandu'))", "ARRAY[TIMESTAMP '2024-01-01 12:00:00 UTC']", new ArrayType(TIMESTAMP_TZ_SECONDS), "ARRAY[TIMESTAMP '2024-01-01 17:45:00 +05:45']")
+                .execute(getQueryRunner(), clickhouseCreateAndTrinoInsert("tpch.test_array_datetime"));
 
         SqlDataTypeTest.create()
                 .addRoundTrip("Array(UUID)", "['6f000000-89ab-cdef-0123-456789abcdef']", new ArrayType(UuidType.UUID), "ARRAY[UUID '6f000000-89ab-cdef-0123-456789abcdef']")
@@ -1347,12 +1424,32 @@ public abstract class BaseClickHouseTypeMapping
                 .addRoundTrip("Map(String, UInt64)", "{}", mapType(VARCHAR, createDecimalType(20, 0)), "CAST(MAP() AS map(varchar, decimal(20, 0)))")
                 .addRoundTrip("Map(LowCardinality(String), Nullable(String))", "{'k1': 'v1', 'k2': NULL}", mapType(VARCHAR, VARCHAR), "MAP(ARRAY[VARCHAR 'k1', VARCHAR 'k2'], ARRAY[VARCHAR 'v1', NULL])")
                 .addRoundTrip("Map(Int32, Array(String))", "{1: ['x', 'y']}", mapType(INTEGER, new ArrayType(VARCHAR)), "MAP(ARRAY[1], ARRAY[ARRAY[VARCHAR 'x', VARCHAR 'y']])")
+                .addRoundTrip(
+                        "Map(String, DateTime64(3, 'Asia/Kathmandu'))",
+                        "map('a', toDateTime64('2024-01-02 03:04:05.123', 3, 'UTC'))",
+                        mapType(VARCHAR, createTimestampWithTimeZoneType(3)),
+                        "MAP(ARRAY[VARCHAR 'a'], ARRAY[TIMESTAMP '2024-01-02 08:49:05.123 +05:45'])")
+                .addRoundTrip(
+                        "Map(DateTime('Europe/Vilnius'), String)",
+                        "map(toDateTime('2024-07-02 03:04:05', 'UTC'), 'x')",
+                        mapType(TIMESTAMP_TZ_SECONDS, VARCHAR),
+                        "MAP(ARRAY[TIMESTAMP '2024-07-02 06:04:05 +03:00'], ARRAY[VARCHAR 'x'])")
                 .execute(getQueryRunner(), session, clickhouseCreateAndInsert("tpch.test_map"));
 
         SqlDataTypeTest.create()
                 .addRoundTrip("Map(String, UInt64)", "MAP(ARRAY['a', 'b'], ARRAY[DECIMAL '1', DECIMAL '2'])", mapType(VARCHAR, createDecimalType(20, 0)), "CAST(MAP(ARRAY['a', 'b'], ARRAY[1, 2]) AS map(varchar, decimal(20, 0)))")
                 .addRoundTrip("Map(LowCardinality(String), Nullable(String))", "MAP(ARRAY['k1', 'k2'], ARRAY['v1', NULL])", mapType(VARCHAR, VARCHAR), "MAP(ARRAY[VARCHAR 'k1', VARCHAR 'k2'], ARRAY[VARCHAR 'v1', NULL])")
                 .addRoundTrip("Map(Int32, Array(String))", "MAP(ARRAY[1], ARRAY[ARRAY['x', 'y']])", mapType(INTEGER, new ArrayType(VARCHAR)), "MAP(ARRAY[1], ARRAY[ARRAY[VARCHAR 'x', VARCHAR 'y']])")
+                .addRoundTrip(
+                        "Map(String, DateTime64(3, 'Asia/Kathmandu'))",
+                        "MAP(ARRAY['a'], ARRAY[TIMESTAMP '2024-01-02 03:04:05.123 UTC'])",
+                        mapType(VARCHAR, createTimestampWithTimeZoneType(3)),
+                        "MAP(ARRAY[VARCHAR 'a'], ARRAY[TIMESTAMP '2024-01-02 08:49:05.123 +05:45'])")
+                .addRoundTrip(
+                        "Map(DateTime('Europe/Vilnius'), String)",
+                        "MAP(ARRAY[TIMESTAMP '2024-07-02 03:04:05 UTC'], ARRAY['x'])",
+                        mapType(TIMESTAMP_TZ_SECONDS, VARCHAR),
+                        "MAP(ARRAY[TIMESTAMP '2024-07-02 06:04:05 +03:00'], ARRAY[VARCHAR 'x'])")
                 .execute(getQueryRunner(), session, clickhouseCreateAndTrinoInsert(session, "tpch.test_map"));
     }
 
@@ -1362,16 +1459,35 @@ public abstract class BaseClickHouseTypeMapping
         Session session = mapStringAsVarcharSession();
         RowType namedRow = RowType.from(List.of(RowType.field("id", INTEGER), RowType.field("label", VARCHAR)));
         RowType nestedRow = RowType.from(List.of(RowType.field("a", INTEGER), RowType.field("b", VARCHAR), RowType.field("c", new ArrayType(SMALLINT))));
+        RowType zonedRow = RowType.from(List.of(RowType.field("a", TIMESTAMP_TZ_SECONDS), RowType.field("b", createTimestampWithTimeZoneType(9))));
+        String zonedRowType = "ROW(a timestamp(0) with time zone, b timestamp(9) with time zone)";
         SqlDataTypeTest.create()
                 .addRoundTrip("Tuple(id Int32, label String)", "(1, 'one')", namedRow, "CAST(ROW(1, 'one') AS ROW(id integer, label varchar))")
                 .addRoundTrip("Tuple(Int32, String)", "(2, 'two')", RowType.anonymous(List.of(INTEGER, VARCHAR)), "CAST(ROW(2, 'two') AS ROW(integer, varchar))")
                 .addRoundTrip("Tuple(a Int32, b Nullable(String), c Array(UInt8))", "(1, NULL, [1, 2])", nestedRow, "CAST(ROW(1, NULL, ARRAY[1, 2]) AS ROW(a integer, b varchar, c array(smallint)))")
                 .addRoundTrip("Array(Tuple(id Int32, label String))", "[(1, 'x'), (2, 'y')]", new ArrayType(namedRow), "CAST(ARRAY[ROW(1, 'x'), ROW(2, 'y')] AS array(row(id integer, label varchar)))")
+                // the second 01:30 in New York on 2024-11-03
+                .addRoundTrip(
+                        "Tuple(a DateTime('Asia/Kathmandu'), b Nullable(DateTime64(9, 'America/New_York')))",
+                        "tuple(toDateTime('2024-01-01 12:00:00', 'UTC'), toDateTime64('2024-11-03 06:30:00.123456789', 9, 'UTC'))",
+                        zonedRow,
+                        "CAST(ROW(TIMESTAMP '2024-01-01 17:45:00 +05:45', TIMESTAMP '2024-11-03 01:30:00.123456789 -05:00') AS %s)".formatted(zonedRowType))
                 .execute(getQueryRunner(), session, clickhouseCreateAndInsert("tpch.test_tuple"));
 
         SqlDataTypeTest.create()
                 .addRoundTrip("Tuple(id Int32, label String)", "CAST(ROW(1, 'one') AS ROW(id integer, label varchar))", namedRow, "CAST(ROW(1, 'one') AS ROW(id integer, label varchar))")
                 .addRoundTrip("Tuple(a Int32, b Nullable(String), c Array(UInt8))", "CAST(ROW(1, NULL, ARRAY[1, 2]) AS ROW(a integer, b varchar, c array(smallint)))", nestedRow, "CAST(ROW(1, NULL, ARRAY[1, 2]) AS ROW(a integer, b varchar, c array(smallint)))")
+                // 01:30 occurs for the first time in New York on 2024-11-03
+                .addRoundTrip(
+                        "Tuple(a DateTime('Asia/Kathmandu'), b Nullable(DateTime64(9, 'America/New_York')))",
+                        "CAST(ROW(TIMESTAMP '2024-01-01 12:00:00 UTC', TIMESTAMP '2024-11-03 05:30:00.123456789 UTC') AS %s)".formatted(zonedRowType),
+                        zonedRow,
+                        "CAST(ROW(TIMESTAMP '2024-01-01 17:45:00 +05:45', TIMESTAMP '2024-11-03 01:30:00.123456789 -04:00') AS %s)".formatted(zonedRowType))
+                .addRoundTrip(
+                        "Tuple(a DateTime('Asia/Kathmandu'), b Nullable(DateTime64(9, 'America/New_York')))",
+                        "CAST(ROW(TIMESTAMP '2024-01-01 12:00:00 UTC', NULL) AS %s)".formatted(zonedRowType),
+                        zonedRow,
+                        "CAST(ROW(TIMESTAMP '2024-01-01 17:45:00 +05:45', NULL) AS %s)".formatted(zonedRowType))
                 .execute(getQueryRunner(), session, clickhouseCreateAndTrinoInsert(session, "tpch.test_tuple"));
     }
 

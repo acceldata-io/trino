@@ -130,7 +130,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -212,7 +211,6 @@ import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.spi.type.IntegerType.INTEGER;
 import static io.trino.spi.type.RealType.REAL;
 import static io.trino.spi.type.SmallintType.SMALLINT;
-import static io.trino.spi.type.TimeZoneKey.UTC_KEY;
 import static io.trino.spi.type.TimestampType.TIMESTAMP_MILLIS;
 import static io.trino.spi.type.TimestampType.TIMESTAMP_SECONDS;
 import static io.trino.spi.type.TimestampType.createTimestampType;
@@ -238,6 +236,7 @@ import static java.math.RoundingMode.UNNECESSARY;
 import static java.time.ZoneOffset.UTC;
 import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
+import static java.util.regex.Matcher.quoteReplacement;
 import static java.util.stream.Collectors.joining;
 
 public class ClickHouseClient
@@ -255,7 +254,8 @@ public class ClickHouseClient
     // ClickHouse has no documented nesting depth limit; this is a Trino-side safety guard to prevent unbounded recursion
     private static final int MAX_ARRAY_NESTING_DEPTH = 10;
 
-    private static final Pattern ZONED_DATETIME64 = Pattern.compile("DateTime64\\(\\s*(\\d+)\\s*,\\s*'([^']*)'\\s*\\)");
+    private static final Pattern ZONED_DATE_TIME = Pattern.compile("\\b(?:DateTime64\\(\\s*(\\d+)\\s*,|DateTime\\()\\s*'([^']*)'\\s*\\)");
+    private static final DateTimeFormatter UTC_DATETIME_FORMATTER = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss").withZone(UTC);
     private static final DateTimeFormatter UTC_DATETIME64_FORMATTER = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSSSSSSSS").withZone(UTC);
 
     private static final Pattern QUOTED_LITERAL = Pattern.compile("'(?:[^'\\\\]|\\\\.)*'");
@@ -789,14 +789,14 @@ public class ClickHouseClient
             case UUID:
                 return Optional.of(uuidColumnMapping());
             case Map: {
-                Optional<ColumnMapping> columnMapping = mapColumnMapping(session, connection, column);
+                Optional<ColumnMapping> columnMapping = mapColumnMapping(session, connection, column, getClickHouseServerVersion(session));
                 if (columnMapping.isPresent()) {
                     return columnMapping;
                 }
                 break;
             }
             case Tuple: {
-                Optional<ColumnMapping> columnMapping = rowColumnMapping(session, connection, column);
+                Optional<ColumnMapping> columnMapping = rowColumnMapping(session, connection, column, getClickHouseServerVersion(session));
                 if (columnMapping.isPresent()) {
                     return columnMapping;
                 }
@@ -808,7 +808,7 @@ public class ClickHouseClient
             case Polygon:
             case MultiLineString:
             case MultiPolygon:
-                return Optional.of(geoColumnMapping(geoType(columnDataType)));
+                return Optional.of(geoColumnMapping(geoType(columnDataType), column));
             default:
                 // no-op
         }
@@ -879,8 +879,8 @@ public class ClickHouseClient
                     verify(typeHandle.requiredDecimalDigits() == 0, "Expected 0 as timestamp with time zone precision, but got %s", typeHandle.requiredDecimalDigits());
                     return Optional.of(ColumnMapping.longMapping(
                             TIMESTAMP_TZ_SECONDS,
-                            shortTimestampWithTimeZoneReadFunction(),
-                            shortTimestampWithTimeZoneWriteFunction(column.getTimeZone())));
+                            shortTimestampWithTimeZoneReadFunction(column.getTimeZone().toZoneId()),
+                            shortTimestampWithTimeZoneWriteFunction(getClickHouseServerVersion(session))));
                 }
                 if (columnDataType == ClickHouseDataType.DateTime64) {
                     return Optional.of(dateTime64WithTimeZoneColumnMapping(column.getScale(), column.getTimeZone().toZoneId(), getClickHouseServerVersion(session)));
@@ -888,7 +888,7 @@ public class ClickHouseClient
                 break;
 
             case Types.ARRAY: {
-                Optional<ColumnMapping> columnMapping = arrayToTrinoType(session, connection, typeHandle);
+                Optional<ColumnMapping> columnMapping = arrayToTrinoType(session, connection, typeHandle, getClickHouseServerVersion(session));
                 if (columnMapping.isPresent()) {
                     return columnMapping;
                 }
@@ -975,7 +975,9 @@ public class ClickHouseClient
                 columnType = "Array(Nullable(%s))".formatted(elementDataType);
                 writeElementType = "Nullable(%s)".formatted(elementDataType);
             }
-            return WriteMapping.objectMapping(columnType, arrayWriteFunction(arrayType.getElementType(), writeElementType));
+            return WriteMapping.objectMapping(
+                    columnType,
+                    arrayWriteFunction(arrayType.getElementType(), ClickHouseColumn.of("", writeElementType), writeElementType, getClickHouseServerVersion(session)));
         }
         throw new TrinoException(NOT_SUPPORTED, "Unsupported column type: " + type);
     }
@@ -1091,20 +1093,33 @@ public class ClickHouseClient
         };
     }
 
-    private static LongReadFunction shortTimestampWithTimeZoneReadFunction()
+    private static LongReadFunction shortTimestampWithTimeZoneReadFunction(ZoneId columnZone)
     {
         return (resultSet, columnIndex) -> {
-            ZonedDateTime zonedDateTime = resultSet.getObject(columnIndex, ZonedDateTime.class);
-            return packDateTimeWithZone(zonedDateTime.toInstant().toEpochMilli(), zonedDateTime.getZone().getId());
+            Instant instant = resultSet.getObject(columnIndex, ZonedDateTime.class).toInstant();
+            return packDateTimeWithZone(instant.toEpochMilli(), timeZoneKey(instant, columnZone));
         };
     }
 
-    private static LongWriteFunction shortTimestampWithTimeZoneWriteFunction(TimeZone columnTimeZone)
+    private static LongWriteFunction shortTimestampWithTimeZoneWriteFunction(ClickHouseVersion version)
     {
-        return (statement, index, value) -> {
-            long millisUtc = unpackMillisUtc(value);
-            // Clickhouse JDBC driver inserts datetime as string value as yyyy-MM-dd HH:mm:ss and zone from the Column metadata would be used.
-            statement.setObject(index, Instant.ofEpochMilli(millisUtc).atZone(columnTimeZone.toZoneId()));
+        return new LongWriteFunction()
+        {
+            @Override
+            public String getBindExpression()
+            {
+                return "toDateTime(?, 'UTC')";
+            }
+
+            @Override
+            public void set(PreparedStatement statement, int index, long value)
+                    throws SQLException
+            {
+                Instant instant = Instant.ofEpochMilli(unpackMillisUtc(value));
+                // ClickHouse stores incorrect results when the values are out of supported range.
+                DATETIME.validate(version, LocalDateTime.ofInstant(instant, UTC));
+                statement.setString(index, UTC_DATETIME_FORMATTER.format(instant));
+            }
         };
     }
 
@@ -1210,13 +1225,17 @@ public class ClickHouseClient
             public void set(PreparedStatement statement, int index, Object value)
                     throws SQLException
             {
-                LongTimestampWithTimeZone timestamp = (LongTimestampWithTimeZone) value;
-                Instant instant = Instant.ofEpochMilli(timestamp.getEpochMillis())
-                        .plusNanos(timestamp.getPicosOfMilli() / PICOSECONDS_PER_NANOSECOND);
+                Instant instant = toInstant((LongTimestampWithTimeZone) value);
                 checker.validate(version, LocalDateTime.ofInstant(instant, UTC));
                 statement.setString(index, UTC_DATETIME64_FORMATTER.format(instant));
             }
         };
+    }
+
+    private static Instant toInstant(LongTimestampWithTimeZone timestamp)
+    {
+        return Instant.ofEpochMilli(timestamp.getEpochMillis())
+                .plusNanos(timestamp.getPicosOfMilli() / PICOSECONDS_PER_NANOSECOND);
     }
 
     private static String utcDateTime64BindExpression(int precision)
@@ -1229,21 +1248,31 @@ public class ClickHouseClient
         return precision == 9 ? DATETIME64_NANOS : DATETIME64;
     }
 
-    // The JDBC driver converts DateTime64 values through local date-time in the column time zone, which is ambiguous
-    // when clocks are set back, so zoned DateTime64 columns are read and written as UTC values. The driver also cannot
-    // read or write LineString and MultiLineString, which ClickHouse stores as Point arrays.
+    private static void validateDateTime(ClickHouseColumn column, ClickHouseVersion version, LocalDateTime value)
+    {
+        if (column.getDataType() == ClickHouseDataType.DateTime) {
+            DATETIME.validate(version, value);
+        }
+        else if (column.getDataType() == ClickHouseDataType.DateTime64) {
+            dateTime64WriteChecker(column.getScale()).validate(version, value);
+        }
+    }
+
+    // The JDBC driver converts zoned DateTime and DateTime64 values through local date-time in the declared time zone,
+    // which is ambiguous when clocks are set back, so zoned values are read and written as UTC values, also inside Array,
+    // Map and Tuple. The driver also cannot read or write LineString and MultiLineString, which ClickHouse stores as Point
+    // arrays.
     static String toTransferType(String clickHouseType)
     {
-        String type = replaceLineStringTypes(clickHouseType);
-        String nullablePrefix = "Nullable(";
-        boolean nullable = type.startsWith(nullablePrefix) && type.endsWith(")");
-        String baseType = nullable ? type.substring(nullablePrefix.length(), type.length() - 1) : type;
-        Matcher matcher = ZONED_DATETIME64.matcher(baseType);
-        if (!matcher.matches() || matcher.group(2).equals("UTC")) {
-            return type;
-        }
-        String utcType = "DateTime64(%s, 'UTC')".formatted(matcher.group(1));
-        return nullable ? nullablePrefix + utcType + ")" : utcType;
+        return ZONED_DATE_TIME.matcher(replaceLineStringTypes(clickHouseType)).replaceAll(match -> {
+            if (match.group(2).equals("UTC")) {
+                return quoteReplacement(match.group());
+            }
+            if (match.group(1) == null) {
+                return "DateTime('UTC')";
+            }
+            return "DateTime64(%s, 'UTC')".formatted(match.group(1));
+        });
     }
 
     private static String replaceLineStringTypes(String type)
@@ -1328,7 +1357,7 @@ public class ClickHouseClient
         return (statement, index, value) -> statement.setObject(index, trinoUuidToJavaUuid(value), Types.OTHER);
     }
 
-    private Optional<ColumnMapping> arrayToTrinoType(ConnectorSession session, Connection connection, JdbcTypeHandle typeHandle)
+    private Optional<ColumnMapping> arrayToTrinoType(ConnectorSession session, Connection connection, JdbcTypeHandle typeHandle, ClickHouseVersion version)
     {
         String typeName = typeHandle.jdbcTypeName()
                 .orElseThrow(() -> new TrinoException(JDBC_ERROR, "Type name is missing: " + typeHandle));
@@ -1355,35 +1384,28 @@ public class ClickHouseClient
                 ? baseColumn.getOriginalTypeName()
                 : "Nullable(" + baseColumn.getOriginalTypeName() + ")";
         ArrayType arrayType = new ArrayType(elementType);
-        ColumnMapping arrayColumnMapping = arrayColumnMapping(arrayType, elementWriteTypeName);
         for (int i = 1; i < arrayLevel; i++) {
             elementWriteTypeName = "Array(" + elementWriteTypeName + ")";
             arrayType = new ArrayType(arrayType);
-            arrayColumnMapping = arrayColumnMapping(arrayType, elementWriteTypeName);
         }
-        return Optional.of(arrayColumnMapping);
-    }
-
-    private ColumnMapping arrayColumnMapping(ArrayType arrayType, String baseElementJdbcTypeName)
-    {
-        return ColumnMapping.objectMapping(
+        return Optional.of(ColumnMapping.objectMapping(
                 arrayType,
-                arrayReadFunction(arrayType.getElementType()),
-                arrayWriteFunction(arrayType.getElementType(), baseElementJdbcTypeName),
-                DISABLE_PUSHDOWN);
+                arrayReadFunction(arrayType.getElementType(), column.getNestedColumns().getFirst()),
+                arrayWriteFunction(arrayType.getElementType(), column.getNestedColumns().getFirst(), elementWriteTypeName, version),
+                DISABLE_PUSHDOWN));
     }
 
-    private Optional<ColumnMapping> mapColumnMapping(ConnectorSession session, Connection connection, ClickHouseColumn column)
+    private Optional<ColumnMapping> mapColumnMapping(ConnectorSession session, Connection connection, ClickHouseColumn column, ClickHouseVersion version)
     {
         Optional<Type> keyType = nestedType(session, connection, column.getKeyInfo());
         Optional<Type> valueType = nestedType(session, connection, column.getValueInfo());
         if (keyType.isEmpty() || valueType.isEmpty() || !keyType.get().isComparable()) {
             return Optional.empty();
         }
-        return Optional.of(nestedColumnMapping(new MapType(keyType.get(), valueType.get(), typeOperators)));
+        return Optional.of(nestedColumnMapping(new MapType(keyType.get(), valueType.get(), typeOperators), column, version));
     }
 
-    private Optional<ColumnMapping> rowColumnMapping(ConnectorSession session, Connection connection, ClickHouseColumn column)
+    private Optional<ColumnMapping> rowColumnMapping(ConnectorSession session, Connection connection, ClickHouseColumn column, ClickHouseVersion version)
     {
         ImmutableList.Builder<RowType.Field> fields = ImmutableList.builder();
         for (ClickHouseColumn field : column.getNestedColumns()) {
@@ -1393,7 +1415,7 @@ public class ClickHouseClient
             }
             fields.add(field.getColumnName().isEmpty() ? RowType.field(fieldType.get()) : RowType.field(field.getColumnName(), fieldType.get()));
         }
-        return Optional.of(nestedColumnMapping(RowType.from(fields.build())));
+        return Optional.of(nestedColumnMapping(RowType.from(fields.build()), column, version));
     }
 
     private Optional<Type> nestedType(ConnectorSession session, Connection connection, ClickHouseColumn column)
@@ -1423,32 +1445,42 @@ public class ClickHouseClient
         };
     }
 
-    private ColumnMapping nestedColumnMapping(Type type)
+    private ColumnMapping nestedColumnMapping(Type type, ClickHouseColumn column, ClickHouseVersion version)
     {
         return ColumnMapping.objectMapping(
                 type,
-                nestedReadFunction(type),
-                objectWriteFunction(type, (block, position) -> toJdbcObjectValue(type, block, position)),
+                nestedReadFunction(type, column),
+                objectWriteFunction(type, (block, position) -> toJdbcObjectValue(type, column, version, block, position)),
                 DISABLE_PUSHDOWN);
     }
 
-    private ColumnMapping geoColumnMapping(Type type)
+    private ColumnMapping geoColumnMapping(Type type, ClickHouseColumn column)
     {
         return ColumnMapping.objectMapping(
                 type,
-                nestedReadFunction(type),
+                nestedReadFunction(type, column),
                 objectWriteFunction(type, (block, position) -> toGeoJdbcValue(type, block, position)),
                 DISABLE_PUSHDOWN);
     }
 
     @SuppressWarnings("unchecked")
-    private ObjectReadFunction nestedReadFunction(Type type)
+    private ObjectReadFunction nestedReadFunction(Type type, ClickHouseColumn column)
     {
         return ObjectReadFunction.of((Class<Object>) type.getJavaType(), (resultSet, columnIndex) -> {
             BlockBuilder builder = type.createBlockBuilder(null, 1);
-            appendValue(type, builder, resultSet.getObject(columnIndex), 0);
+            appendValue(type, column, builder, resultSet.getObject(columnIndex), 0);
             return type.getObject(builder.build(), 0);
         });
+    }
+
+    // Geo columns such as Point and Ring have no nested columns, and their values never hold date-time values
+    private static ClickHouseColumn nestedColumn(ClickHouseColumn column, int index)
+    {
+        List<ClickHouseColumn> nestedColumns = column.getNestedColumns();
+        if (nestedColumns.isEmpty()) {
+            return column;
+        }
+        return nestedColumns.get(index);
     }
 
     @SuppressWarnings("unchecked")
@@ -1496,18 +1528,18 @@ public class ClickHouseClient
         return double[].class;
     }
 
-    private ObjectReadFunction arrayReadFunction(Type elementType)
+    private ObjectReadFunction arrayReadFunction(Type elementType, ClickHouseColumn elementColumn)
     {
         return ObjectReadFunction.of(Block.class, (resultSet, columnIndex) -> {
             Array array = resultSet.getArray(columnIndex);
             if (array == null) {
                 return elementType.createBlockBuilder(null, 0).build();
             }
-            return buildArrayBlock(elementType, array.getArray(), 0);
+            return buildArrayBlock(elementType, elementColumn, array.getArray(), 0);
         });
     }
 
-    private Block buildArrayBlock(Type elementType, Object javaArray, int depth)
+    private Block buildArrayBlock(Type elementType, ClickHouseColumn elementColumn, Object javaArray, int depth)
             throws SQLException
     {
         if (depth >= MAX_ARRAY_NESTING_DEPTH) {
@@ -1519,7 +1551,7 @@ public class ClickHouseClient
         if (javaArray instanceof List<?> list) {
             BlockBuilder builder = elementType.createBlockBuilder(null, list.size());
             for (Object element : list) {
-                appendValue(elementType, builder, element, depth);
+                appendValue(elementType, elementColumn, builder, element, depth);
             }
             return builder.build();
         }
@@ -1532,12 +1564,12 @@ public class ClickHouseClient
         }
         BlockBuilder builder = elementType.createBlockBuilder(null, length);
         for (int i = 0; i < length; i++) {
-            appendValue(elementType, builder, java.lang.reflect.Array.get(javaArray, i), depth);
+            appendValue(elementType, elementColumn, builder, java.lang.reflect.Array.get(javaArray, i), depth);
         }
         return builder.build();
     }
 
-    private void appendValue(Type type, BlockBuilder builder, Object value, int depth)
+    private void appendValue(Type type, ClickHouseColumn column, BlockBuilder builder, Object value, int depth)
             throws SQLException
     {
         if (value == null) {
@@ -1551,8 +1583,8 @@ public class ClickHouseClient
             }
             ((MapBlockBuilder) builder).buildEntry((keyBuilder, valueBuilder) -> {
                 for (Entry<?, ?> entry : map.entrySet()) {
-                    appendValue(mapType.getKeyType(), keyBuilder, entry.getKey(), depth + 1);
-                    appendValue(mapType.getValueType(), valueBuilder, entry.getValue(), depth + 1);
+                    appendValue(mapType.getKeyType(), column.getKeyInfo(), keyBuilder, entry.getKey(), depth + 1);
+                    appendValue(mapType.getValueType(), column.getValueInfo(), valueBuilder, entry.getValue(), depth + 1);
                 }
             });
             return;
@@ -1566,7 +1598,7 @@ public class ClickHouseClient
             }
             ((RowBlockBuilder) builder).buildEntry(fieldBuilders -> {
                 for (int i = 0; i < fields.size(); i++) {
-                    appendValue(fields.get(i).getType(), fieldBuilders.get(i), fieldValues.get(i), depth + 1);
+                    appendValue(fields.get(i).getType(), nestedColumn(column, i), fieldBuilders.get(i), fieldValues.get(i), depth + 1);
                 }
             });
             return;
@@ -1580,7 +1612,7 @@ public class ClickHouseClient
             else {
                 innerArray = value;
             }
-            type.writeObject(builder, buildArrayBlock(arrayType.getElementType(), innerArray, depth + 1));
+            type.writeObject(builder, buildArrayBlock(arrayType.getElementType(), nestedColumn(column, 0), innerArray, depth + 1));
             return;
         }
         if (type instanceof TimestampType timestampType) {
@@ -1594,7 +1626,7 @@ public class ClickHouseClient
             return;
         }
         if (type instanceof TimestampWithTimeZoneType timestampWithTimeZoneType) {
-            writeTimestampWithTimeZone(timestampWithTimeZoneType, builder, value);
+            writeTimestampWithTimeZone(timestampWithTimeZoneType, column.getTimeZone().toZoneId(), builder, value);
             return;
         }
         if (type.getJavaType() == boolean.class) {
@@ -1702,18 +1734,16 @@ public class ClickHouseClient
         throw new TrinoException(JDBC_ERROR, "Unexpected tuple value from ClickHouse JDBC: " + value.getClass());
     }
 
-    private static void writeTimestampWithTimeZone(TimestampWithTimeZoneType type, BlockBuilder builder, Object value)
+    private static void writeTimestampWithTimeZone(TimestampWithTimeZoneType type, ZoneId columnZone, BlockBuilder builder, Object value)
     {
-        ZonedDateTime dateTime = switch (value) {
-            case ZonedDateTime zonedDateTime -> zonedDateTime;
-            case OffsetDateTime offsetDateTime -> offsetDateTime.toZonedDateTime();
-            // DateTime('UTC') elements are returned without a zone
-            case LocalDateTime localDateTime -> localDateTime.atZone(UTC);
+        Instant instant = switch (value) {
+            case ZonedDateTime zonedDateTime -> zonedDateTime.toInstant();
+            case OffsetDateTime offsetDateTime -> offsetDateTime.toInstant();
+            // Zoned values are read as UTC values, and the JDBC driver returns DateTime('UTC') elements without a zone
+            case LocalDateTime localDateTime -> localDateTime.toInstant(UTC);
             default -> throw new TrinoException(JDBC_ERROR, "Unexpected timestamp with time zone value from ClickHouse JDBC: " + value.getClass());
         };
-        Instant instant = dateTime.toInstant();
-        int offsetSeconds = dateTime.getOffset().getTotalSeconds();
-        TimeZoneKey zoneKey = offsetSeconds % 60 == 0 ? TimeZoneKey.getTimeZoneKeyForOffset(offsetSeconds / 60) : UTC_KEY;
+        TimeZoneKey zoneKey = timeZoneKey(instant, columnZone);
         if (type.isShort()) {
             type.writeLong(builder, packDateTimeWithZone(instant.toEpochMilli(), zoneKey));
         }
@@ -1738,26 +1768,29 @@ public class ClickHouseClient
         return raw;
     }
 
-    private ObjectWriteFunction arrayWriteFunction(Type elementType, String baseElementJdbcTypeName)
+    private ObjectWriteFunction arrayWriteFunction(Type elementType, ClickHouseColumn elementColumn, String elementTypeName, ClickHouseVersion version)
     {
+        String elementTransferType = toTransferType(elementTypeName);
         return ObjectWriteFunction.of(Block.class, (statement, index, block) -> {
-            Object[] elements = toJdbcObjectArray(elementType, block);
-            Array jdbcArray = statement.getConnection().createArrayOf(baseElementJdbcTypeName, elements);
+            Object[] elements = toJdbcObjectArray(elementType, elementColumn, version, block);
+            Array jdbcArray = statement.getConnection().createArrayOf(elementTransferType, elements);
             statement.setArray(index, jdbcArray);
         });
     }
 
-    private Object[] toJdbcObjectArray(Type elementType, Block block)
+    private Object[] toJdbcObjectArray(Type elementType, ClickHouseColumn elementColumn, ClickHouseVersion version, Block block)
     {
         int positionCount = block.getPositionCount();
         Object[] values = new Object[positionCount];
         for (int i = 0; i < positionCount; i++) {
-            values[i] = toJdbcObjectValue(elementType, block, i);
+            values[i] = toJdbcObjectValue(elementType, elementColumn, version, block, i);
         }
         return values;
     }
 
-    private Object toJdbcObjectValue(Type type, Block block, int position)
+    // ClickHouse stores incorrect results when the values are out of supported range, so nested values
+    // are checked in the same way as top-level values of the same ClickHouse type.
+    private Object toJdbcObjectValue(Type type, ClickHouseColumn column, ClickHouseVersion version, Block block, int position)
     {
         if (block.isNull(position)) {
             return null;
@@ -1769,13 +1802,25 @@ public class ClickHouseClient
             return (byte) type.getLong(block, position);
         }
         if (SMALLINT.equals(type)) {
-            return Shorts.checkedCast(type.getLong(block, position));
+            long value = type.getLong(block, position);
+            if (column.getDataType() == ClickHouseDataType.UInt8) {
+                UINT8.validate(version, value);
+            }
+            return Shorts.checkedCast(value);
         }
         if (INTEGER.equals(type)) {
-            return toIntExact(type.getLong(block, position));
+            long value = type.getLong(block, position);
+            if (column.getDataType() == ClickHouseDataType.UInt16) {
+                UINT16.validate(version, value);
+            }
+            return toIntExact(value);
         }
         if (BIGINT.equals(type)) {
-            return type.getLong(block, position);
+            long value = type.getLong(block, position);
+            if (column.getDataType() == ClickHouseDataType.UInt32) {
+                UINT32.validate(version, value);
+            }
+            return value;
         }
         if (REAL.equals(type)) {
             return intBitsToFloat(toIntExact(type.getLong(block, position)));
@@ -1784,21 +1829,49 @@ public class ClickHouseClient
             return type.getDouble(block, position);
         }
         if (DATE.equals(type)) {
-            return LocalDate.ofEpochDay(type.getLong(block, position));
+            LocalDate date = LocalDate.ofEpochDay(type.getLong(block, position));
+            TrinoToClickHouseWriteChecker.DATE.validate(version, date);
+            return date;
         }
         if (type instanceof TimestampType timestampType) {
+            LocalDateTime timestamp;
             if (timestampType.isShort()) {
-                return fromTrinoTimestamp(type.getLong(block, position));
+                timestamp = fromTrinoTimestamp(type.getLong(block, position));
             }
-            return fromLongTrinoTimestamp((LongTimestamp) type.getObject(block, position), timestampType.getPrecision());
+            else {
+                timestamp = fromLongTrinoTimestamp((LongTimestamp) type.getObject(block, position), timestampType.getPrecision());
+            }
+            validateDateTime(column, version, timestamp);
+            return timestamp;
+        }
+        if (type instanceof TimestampWithTimeZoneType timestampWithTimeZoneType) {
+            Instant instant;
+            if (timestampWithTimeZoneType.isShort()) {
+                instant = Instant.ofEpochMilli(unpackMillisUtc(type.getLong(block, position)));
+            }
+            else {
+                instant = toInstant((LongTimestampWithTimeZone) type.getObject(block, position));
+            }
+            validateDateTime(column, version, LocalDateTime.ofInstant(instant, UTC));
+            // The input() columns declare zoned values in UTC, see toTransferType
+            if (column.getDataType() == ClickHouseDataType.DateTime) {
+                return UTC_DATETIME_FORMATTER.format(instant);
+            }
+            return UTC_DATETIME64_FORMATTER.format(instant);
         }
         if (type instanceof DecimalType decimalType) {
+            BigInteger unscaled;
             if (decimalType.isShort()) {
-                BigInteger unscaled = BigInteger.valueOf(type.getLong(block, position));
-                return new BigDecimal(unscaled, decimalType.getScale(), new MathContext(decimalType.getPrecision()));
+                unscaled = BigInteger.valueOf(type.getLong(block, position));
             }
-            BigInteger unscaled = ((Int128) type.getObject(block, position)).toBigInteger();
-            return new BigDecimal(unscaled, decimalType.getScale(), new MathContext(decimalType.getPrecision()));
+            else {
+                unscaled = ((Int128) type.getObject(block, position)).toBigInteger();
+            }
+            BigDecimal value = new BigDecimal(unscaled, decimalType.getScale(), new MathContext(decimalType.getPrecision()));
+            if (column.getDataType() == ClickHouseDataType.UInt64) {
+                UINT64.validate(version, value);
+            }
+            return value;
         }
         if (type instanceof VarcharType || type instanceof CharType) {
             return ((Slice) type.getObject(block, position)).toStringUtf8();
@@ -1824,7 +1897,7 @@ public class ClickHouseClient
             }
         }
         if (type instanceof ArrayType arrayType) {
-            return toJdbcObjectArray(arrayType.getElementType(), (Block) type.getObject(block, position));
+            return toJdbcObjectArray(arrayType.getElementType(), nestedColumn(column, 0), version, (Block) type.getObject(block, position));
         }
         if (type instanceof MapType mapType) {
             SqlMap sqlMap = mapType.getObject(block, position);
@@ -1832,8 +1905,8 @@ public class ClickHouseClient
             for (int i = 0; i < sqlMap.getSize(); i++) {
                 int entry = sqlMap.getRawOffset() + i;
                 values.put(
-                        toJdbcObjectValue(mapType.getKeyType(), sqlMap.getRawKeyBlock(), entry),
-                        toJdbcObjectValue(mapType.getValueType(), sqlMap.getRawValueBlock(), entry));
+                        toJdbcObjectValue(mapType.getKeyType(), column.getKeyInfo(), version, sqlMap.getRawKeyBlock(), entry),
+                        toJdbcObjectValue(mapType.getValueType(), column.getValueInfo(), version, sqlMap.getRawValueBlock(), entry));
             }
             return values;
         }
@@ -1841,7 +1914,7 @@ public class ClickHouseClient
             SqlRow sqlRow = rowType.getObject(block, position);
             List<Object> values = new ArrayList<>(rowType.getFields().size());
             for (int field = 0; field < rowType.getFields().size(); field++) {
-                values.add(toJdbcObjectValue(rowType.getFields().get(field).getType(), sqlRow.getRawFieldBlock(field), sqlRow.getRawIndex()));
+                values.add(toJdbcObjectValue(rowType.getFields().get(field).getType(), nestedColumn(column, field), version, sqlRow.getRawFieldBlock(field), sqlRow.getRawIndex()));
             }
             return values;
         }
