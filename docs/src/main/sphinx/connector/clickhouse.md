@@ -272,7 +272,9 @@ to the following table:
   -
 * - `DateTime[(timezone)]`
   - `TIMESTAMP(0) [WITH TIME ZONE]`
-  -
+  - With a time zone, values are returned with the offset of the column time
+    zone. Values are transferred in UTC, so times repeated when clocks are set
+    back keep their instant.
 * - `DateTime64(p)`
   - `TIMESTAMP(p)`
   - Precision `p` from 0 to 9 is read and written in full.
@@ -323,9 +325,12 @@ to the following table:
 
 No other types are supported.
 
-Values can be inserted into existing `Map`, `Tuple`, and geo columns. Strings
-nested in `Map` and `Tuple` values are decoded as UTF-8 by the ClickHouse JDBC
-driver.
+Values can be inserted into existing `Array`, `Map`, `Tuple`, and geo columns.
+Values nested in these types follow the same rules as top-level values: zoned
+`DateTime` and `DateTime64` values are transferred in UTC and returned with the
+offset of their time zone, and inserted values must be in the same range.
+Strings nested in `Map` and `Tuple` values are decoded as UTF-8 by the
+ClickHouse JDBC driver.
 
 ### Trino type to ClickHouse type mapping
 
