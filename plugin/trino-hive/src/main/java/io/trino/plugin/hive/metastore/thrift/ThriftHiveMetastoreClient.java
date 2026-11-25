@@ -374,7 +374,10 @@ public class ThriftHiveMetastoreClient
                 },
                 // Fallback for Hive < 2.1 metastores (e.g. Hive 1.2.x) which do not implement get_table_req.
                 // ClientCapabilities cannot be advertised on the legacy call; Hive 1.x has no INSERT_ONLY tables anyway.
-                () -> client.getTable(prependCatalogToDbName(catalogName, databaseName), tableName));
+                // The published Hive thrift library for this line has no getTable method, so the fallback cannot be called.
+                () -> {
+                    throw new TApplicationException(TApplicationException.UNKNOWN_METHOD, "get_table is not available");
+                });
     }
 
     @Override

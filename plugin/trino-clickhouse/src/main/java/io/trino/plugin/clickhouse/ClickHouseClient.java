@@ -850,21 +850,20 @@ public class ClickHouseClient
                             FULL_PUSHDOWN));
                 }
 
-                ColumnMapping decimalColumnMapping;
                 if (getDecimalRounding(session) == ALLOW_OVERFLOW) {
                     int scale = Math.min(decimalDigits, getDecimalDefaultScale(session));
-                    decimalColumnMapping = decimalColumnMapping(createDecimalType(Decimals.MAX_PRECISION, scale), getDecimalRoundingMode(session));
+                    ColumnMapping decimalColumnMapping = decimalColumnMapping(createDecimalType(Decimals.MAX_PRECISION, scale), getDecimalRoundingMode(session));
+                    // Trino rounds these values to precision 38, so they differ from the values in ClickHouse,
+                    // and a filter evaluated by ClickHouse would return different rows
+                    return Optional.of(ColumnMapping.mapping(
+                            decimalColumnMapping.getType(),
+                            decimalColumnMapping.getReadFunction(),
+                            decimalColumnMapping.getWriteFunction(),
+                            DISABLE_PUSHDOWN));
                 }
-                else {
-                    decimalColumnMapping = decimalColumnMapping(createDecimalType(precision, max(decimalDigits, 0)));
-                }
-                return Optional.of(ColumnMapping.mapping(
-                        decimalColumnMapping.getType(),
-                        decimalColumnMapping.getReadFunction(),
-                        decimalColumnMapping.getWriteFunction(),
-                        // Trino rounds these values to precision 38, so they differ from the values in ClickHouse,
-                        // and a filter evaluated by ClickHouse would return different rows
-                        DISABLE_PUSHDOWN));
+                // Precision above 38 is not a Trino decimal on this line. Fall through so
+                // unsupported-type-handling can ignore the column or map it to varchar.
+                break;
 
             case Types.DATE:
                 return Optional.of(dateColumnMappingUsingLocalDate(getClickHouseServerVersion(session)));

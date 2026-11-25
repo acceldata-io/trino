@@ -74,6 +74,9 @@ import static org.junit.jupiter.api.TestInstance.Lifecycle.PER_CLASS;
 public abstract class BaseClickHouseTypeMapping
         extends AbstractTestQueryFramework
 {
+    private static final String MIN_SUPPORTED_DATETIME_VALUE = "1970-01-01 00:00:00";
+    private static final String MAX_SUPPORTED_DATETIME_VALUE = "2106-02-07 06:28:15";
+
     private final ZoneId jvmZone = ZoneId.systemDefault();
 
     // no DST in 1970, but has DST in later years (e.g. 2018)
