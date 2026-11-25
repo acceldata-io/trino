@@ -14,14 +14,13 @@
 package io.trino.plugin.base.mapping;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+import io.airlift.configuration.ConfigurationFactory;
 import io.airlift.units.Duration;
 import jakarta.validation.constraints.AssertTrue;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.airlift.configuration.testing.ConfigAssertions.assertFullMapping;
 import static io.airlift.configuration.testing.ConfigAssertions.assertRecordedDefaults;
 import static io.airlift.configuration.testing.ConfigAssertions.recordDefaults;
 import static io.airlift.testing.ValidationAssertions.assertFailsValidation;
@@ -29,6 +28,7 @@ import static io.airlift.testing.ValidationAssertions.assertValidates;
 import static io.trino.plugin.base.mapping.RuleBasedIdentifierMappingUtils.createRuleBasedIdentifierMappingFile;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestMappingConfig
 {
@@ -61,21 +61,23 @@ public class TestMappingConfig
                 .setCaseInsensitiveNameMatchingConfigFile(configFile)
                 .setCaseInsensitiveNameMatchingConfigFileRefreshPeriod(new Duration(1, SECONDS));
 
-        // case-sensitive-name-matching cannot be combined with the properties above
-        assertFullMapping(properties, expected, ImmutableSet.of("case-sensitive-name-matching"));
+        // case-sensitive-name-matching stays at its default here: it cannot be enabled together with the properties above.
+        // Airlift 338 assertFullMapping requires every property to be set to a non-default value, so compare the bound config directly.
+        MappingConfig actual = new ConfigurationFactory(properties).build(MappingConfig.class);
+        assertThat(actual.isCaseInsensitiveNameMatching()).isEqualTo(expected.isCaseInsensitiveNameMatching());
+        assertThat(actual.getCaseInsensitiveNameMatchingCacheTtl()).isEqualTo(expected.getCaseInsensitiveNameMatchingCacheTtl());
+        assertThat(actual.getCaseInsensitiveNameMatchingConfigFile()).isEqualTo(expected.getCaseInsensitiveNameMatchingConfigFile());
+        assertThat(actual.getCaseInsensitiveNameMatchingConfigFileRefreshPeriod()).isEqualTo(expected.getCaseInsensitiveNameMatchingConfigFileRefreshPeriod());
+        assertThat(actual.isCaseSensitiveNameMatching()).isFalse();
     }
 
     @Test
     public void testExplicitCaseSensitiveNameMatchingMapping()
     {
-        assertFullMapping(
-                ImmutableMap.of("case-sensitive-name-matching", "true"),
-                new MappingConfig().setCaseSensitiveNameMatching(true),
-                ImmutableSet.of(
-                        "case-insensitive-name-matching",
-                        "case-insensitive-name-matching.cache-ttl",
-                        "case-insensitive-name-matching.config-file",
-                        "case-insensitive-name-matching.config-file.refresh-period"));
+        MappingConfig actual = new ConfigurationFactory(ImmutableMap.of("case-sensitive-name-matching", "true")).build(MappingConfig.class);
+        assertThat(actual.isCaseSensitiveNameMatching()).isTrue();
+        assertThat(actual.isCaseInsensitiveNameMatching()).isFalse();
+        assertThat(actual.getCaseInsensitiveNameMatchingConfigFile()).isEmpty();
     }
 
     @Test
