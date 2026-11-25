@@ -121,6 +121,28 @@ public abstract class BaseClickHouseTypeMapping
     }
 
     @Test
+    public void testTrinoBoolean()
+    {
+        SqlDataTypeTest.create()
+                .addRoundTrip("boolean", "true", BOOLEAN, "true")
+                .addRoundTrip("boolean", "false", BOOLEAN, "false")
+                .addRoundTrip("boolean", "NULL", BOOLEAN, "CAST(NULL AS BOOLEAN)")
+                .execute(getQueryRunner(), trinoCreateAsSelect("test_boolean"))
+                .execute(getQueryRunner(), trinoCreateAndInsert("test_boolean"));
+    }
+
+    @Test
+    public void testBool()
+    {
+        SqlDataTypeTest.create()
+                .addRoundTrip("bool", "true", BOOLEAN, "true")
+                .addRoundTrip("bool", "false", BOOLEAN, "false")
+                .addRoundTrip("Nullable(bool)", "NULL", BOOLEAN, "CAST(NULL AS BOOLEAN)")
+                .execute(getQueryRunner(), clickhouseCreateAndInsert("tpch.test_boolean"))
+                .execute(getQueryRunner(), clickhouseCreateAndTrinoInsert("tpch.test_boolean"));
+    }
+
+    @Test
     public void testTinyint()
     {
         SqlDataTypeTest.create()
