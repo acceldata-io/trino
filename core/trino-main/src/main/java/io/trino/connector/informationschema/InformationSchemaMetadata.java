@@ -64,6 +64,7 @@ import static io.trino.connector.informationschema.InformationSchemaTable.TABLES
 import static io.trino.connector.informationschema.InformationSchemaTable.TABLE_PRIVILEGES;
 import static io.trino.connector.informationschema.InformationSchemaTable.VIEWS;
 import static io.trino.metadata.MetadataUtil.findColumnMetadata;
+import static io.trino.metadata.MetadataUtil.hasCaseSensitiveNames;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
 import static java.util.Collections.emptyList;
@@ -238,8 +239,9 @@ public class InformationSchemaMetadata
     {
         Optional<Set<String>> schemas = filterString(constraint, SCHEMA_COLUMN_HANDLE);
         if (schemas.isPresent()) {
+            boolean caseSensitiveNames = isCaseSensitiveCatalog(connectorSession);
             Set<QualifiedTablePrefix> schemasFromPredicate = schemas.get().stream()
-                    .filter(this::isLowerCase)
+                    .filter(schema -> caseSensitiveNames || isLowerCase(schema))
                     .filter(schema -> predicate.isEmpty() || predicate.get().test(schemaAsFixedValues(schema)))
                     .map(schema -> new QualifiedTablePrefix(catalogName, schema))
                     .collect(toImmutableSet());
@@ -276,13 +278,14 @@ public class InformationSchemaMetadata
 
         Optional<Set<String>> tables = filterString(constraint, TABLE_NAME_COLUMN_HANDLE);
         if (tables.isPresent()) {
+            boolean caseSensitiveNames = isCaseSensitiveCatalog(connectorSession);
             Set<QualifiedTablePrefix> tablePrefixes = prefixes.stream()
                     .peek(prefix -> verify(prefix.asQualifiedObjectName().isEmpty()))
                     .flatMap(prefix -> prefix.getSchemaName()
                             .map(schemaName -> Stream.of(prefix))
                             .orElseGet(() -> listSchemaNames(session)))
                     .flatMap(prefix -> tables.get().stream()
-                            .filter(this::isLowerCase)
+                            .filter(table -> caseSensitiveNames || isLowerCase(table))
                             .map(table -> new QualifiedObjectName(catalogName, prefix.getSchemaName().get(), table)))
                     .filter(objectName -> predicate.isEmpty() || predicate.get().test(asFixedValues(objectName)))
                     .map(QualifiedObjectName::asQualifiedTablePrefix)
@@ -374,6 +377,12 @@ public class InformationSchemaMetadata
                 CATALOG_COLUMN_HANDLE, new NullableValue(createUnboundedVarcharType(), utf8Slice(objectName.catalogName())),
                 SCHEMA_COLUMN_HANDLE, new NullableValue(createUnboundedVarcharType(), utf8Slice(objectName.schemaName())),
                 TABLE_NAME_COLUMN_HANDLE, new NullableValue(createUnboundedVarcharType(), utf8Slice(objectName.objectName())));
+    }
+
+    private boolean isCaseSensitiveCatalog(ConnectorSession connectorSession)
+    {
+        Session session = ((FullConnectorSession) connectorSession).getSession();
+        return hasCaseSensitiveNames(metadata, session, catalogName);
     }
 
     private boolean isLowerCase(String value)

@@ -130,9 +130,11 @@ import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static io.trino.connector.MockConnector.MockConnectorSplit.MOCK_CONNECTOR_SPLIT;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
+import static io.trino.spi.connector.ConnectorCapabilities.CASE_SENSITIVE_SCHEMA_AND_TABLE_NAMES;
 import static io.trino.spi.connector.MaterializedViewFreshness.Freshness.FRESH;
 import static io.trino.spi.connector.MaterializedViewFreshness.Freshness.STALE;
 import static io.trino.spi.connector.RowChangeParadigm.DELETE_ROW_AND_INSERT_ROW;
+import static io.trino.spi.connector.SchemaTableName.caseSensitiveSchemaTableName;
 import static io.trino.spi.function.FunctionDependencyDeclaration.NO_DEPENDENCIES;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static java.util.Objects.requireNonNull;
@@ -568,16 +570,24 @@ public class MockConnector
             if (schemaName.isPresent()) {
                 String schema = schemaName.get();
                 return listTables.apply(session, schema).stream()
-                        .map(tableName -> new SchemaTableName(schema, tableName))
+                        .map(tableName -> listedTableName(schema, tableName))
                         .collect(toImmutableList());
             }
             ImmutableList.Builder<SchemaTableName> tableNames = ImmutableList.builder();
             for (String schema : listSchemaNames(session)) {
                 tableNames.addAll(listTables.apply(session, schema).stream()
-                        .map(tableName -> new SchemaTableName(schema, tableName))
+                        .map(tableName -> listedTableName(schema, tableName))
                         .collect(toImmutableList()));
             }
             return tableNames.build();
+        }
+
+        private SchemaTableName listedTableName(String schemaName, String tableName)
+        {
+            if (capabilities.get().contains(CASE_SENSITIVE_SCHEMA_AND_TABLE_NAMES)) {
+                return caseSensitiveSchemaTableName(schemaName, tableName);
+            }
+            return new SchemaTableName(schemaName, tableName);
         }
 
         @Override

@@ -17,4 +17,9 @@ public enum ConnectorCapabilities
 {
     NOT_NULL_COLUMN_CONSTRAINT,
     MATERIALIZED_VIEW_GRACE_PERIOD,
+    /**
+     * Quoted schema and table names keep their case, and schema and table names are listed
+     * with their exact case. Unquoted names and column names are still lowercased.
+     */
+    CASE_SENSITIVE_SCHEMA_AND_TABLE_NAMES,
 }

@@ -31,6 +31,7 @@ import java.util.List;
 
 import static com.google.common.util.concurrent.Futures.immediateVoidFuture;
 import static io.trino.metadata.MetadataUtil.createQualifiedObjectName;
+import static io.trino.metadata.MetadataUtil.keepQuotedNameCase;
 import static io.trino.spi.StandardErrorCode.CATALOG_NOT_FOUND;
 import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
@@ -68,7 +69,7 @@ public class RenameTableTask
             WarningCollector warningCollector)
     {
         Session session = stateMachine.getSession();
-        QualifiedObjectName tableName = createQualifiedObjectName(session, statement, statement.getSource());
+        QualifiedObjectName tableName = createQualifiedObjectName(session, statement, statement.getSource(), metadata);
 
         if (metadata.isMaterializedView(session, tableName)) {
             throw semanticException(
@@ -94,7 +95,7 @@ public class RenameTableTask
 
         TableHandle tableHandle = redirectionAwareTableHandle.tableHandle().get();
         QualifiedObjectName source = redirectionAwareTableHandle.redirectedTableName().orElse(tableName);
-        QualifiedObjectName target = createTargetQualifiedObjectName(source, statement.getTarget());
+        QualifiedObjectName target = keepQuotedNameCase(session, createTargetQualifiedObjectName(source, statement.getTarget()), statement.getTarget(), metadata);
         if (metadata.getCatalogHandle(session, target.catalogName()).isEmpty()) {
             throw semanticException(CATALOG_NOT_FOUND, statement, "Target catalog '%s' not found", target.catalogName());
         }

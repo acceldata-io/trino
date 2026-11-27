@@ -171,6 +171,8 @@ import static io.trino.spi.StandardErrorCode.SYNTAX_ERROR;
 import static io.trino.spi.StandardErrorCode.TABLE_NOT_FOUND;
 import static io.trino.spi.StandardErrorCode.TABLE_REDIRECTION_ERROR;
 import static io.trino.spi.StandardErrorCode.UNSUPPORTED_TABLE_TYPE;
+import static io.trino.spi.connector.CatalogSchemaName.caseSensitiveCatalogSchemaName;
+import static io.trino.spi.connector.ConnectorCapabilities.CASE_SENSITIVE_SCHEMA_AND_TABLE_NAMES;
 import static io.trino.spi.connector.MaterializedViewFreshness.Freshness.STALE;
 import static java.lang.String.format;
 import static java.util.Collections.singletonList;
@@ -257,10 +259,11 @@ public final class MetadataManager
         if (catalog.isPresent()) {
             CatalogMetadata catalogMetadata = catalog.get();
             ConnectorSession connectorSession = session.toConnectorSession(catalogMetadata.getCatalogHandle());
+            boolean caseSensitiveNames = catalogMetadata.getConnectorCapabilities().contains(CASE_SENSITIVE_SCHEMA_AND_TABLE_NAMES);
             for (CatalogHandle catalogHandle : catalogMetadata.listCatalogHandles()) {
                 ConnectorMetadata metadata = catalogMetadata.getMetadataFor(session, catalogHandle);
                 metadata.listSchemaNames(connectorSession).stream()
-                        .map(schema -> schema.toLowerCase(Locale.ENGLISH))
+                        .map(schema -> caseSensitiveNames ? schema : schema.toLowerCase(Locale.ENGLISH))
                         .filter(schema -> !isExternalInformationSchema(catalogHandle, schema))
                         .forEach(schemaNames::add);
             }
@@ -847,7 +850,11 @@ public final class MetadataManager
         ConnectorMetadata metadata = catalogMetadata.getMetadata(session);
         metadata.renameSchema(session.toConnectorSession(catalogHandle), source.getSchemaName(), target);
         if (catalogMetadata.getSecurityManagement() == SYSTEM) {
-            systemSecurityMetadata.schemaRenamed(session, source, new CatalogSchemaName(source.getCatalogName(), target));
+            CatalogSchemaName targetName = new CatalogSchemaName(source.getCatalogName(), target);
+            if (catalogMetadata.getConnectorCapabilities().contains(CASE_SENSITIVE_SCHEMA_AND_TABLE_NAMES)) {
+                targetName = caseSensitiveCatalogSchemaName(source.getCatalogName(), target);
+            }
+            systemSecurityMetadata.schemaRenamed(session, source, targetName);
         }
     }
 
@@ -1990,7 +1997,7 @@ public final class MetadataManager
         if (getCatalogHandle(session, targetTableName.catalogName()).isEmpty()) {
             throw new TrinoException(TABLE_REDIRECTION_ERROR, format("Table '%s' redirected to '%s', but the target catalog '%s' does not exist", tableName, targetTableName, targetTableName.catalogName()));
         }
-        if (!schemaExists(session, new CatalogSchemaName(targetTableName.catalogName(), targetTableName.schemaName()))) {
+        if (!schemaExists(session, caseSensitiveCatalogSchemaName(targetTableName.catalogName(), targetTableName.schemaName()))) {
             throw new TrinoException(TABLE_REDIRECTION_ERROR, format("Table '%s' redirected to '%s', but the target schema '%s' does not exist", tableName, targetTableName, targetTableName.schemaName()));
         }
         throw new TrinoException(TABLE_REDIRECTION_ERROR, format("Table '%s' redirected to '%s', but the target table '%s' does not exist", tableName, targetTableName, targetTableName));

@@ -13,7 +13,8 @@
     <description>Trino - Pinot connector</description>
 
     <properties>
-        <dep.pinot.version>1.5.1.${odp.release.version}</dep.pinot.version>
+        <!-- 1.5.1.3.3.6.7-SNAPSHOT is not in the local repository. 1.5.1.3.3.6.6-1011 is the newest Pinot 1.5.1 build that is. -->
+        <dep.pinot.version>1.5.1.3.3.6.6-1011</dep.pinot.version>
         <!-- guava: 33.4.8-jre vs 33.5.0-jre. Overridden as a property so that airbase keeps excluding the empty listenablefuture artifact -->
         <dep.guava.version>33.5.0-jre</dep.guava.version>
         <air.compiler.fail-warnings>true</air.compiler.fail-warnings>

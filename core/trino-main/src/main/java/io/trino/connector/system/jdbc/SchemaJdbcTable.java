@@ -32,6 +32,7 @@ import static io.trino.connector.system.jdbc.FilterUtil.isImpossibleObjectName;
 import static io.trino.metadata.MetadataListing.listCatalogNames;
 import static io.trino.metadata.MetadataListing.listSchemas;
 import static io.trino.metadata.MetadataUtil.TableMetadataBuilder.tableMetadataBuilder;
+import static io.trino.metadata.MetadataUtil.hasCaseSensitiveNames;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
 
@@ -70,11 +71,14 @@ public class SchemaJdbcTable
         Domain schemaDomain = constraint.getDomain(0, VARCHAR);
         Domain catalogDomain = constraint.getDomain(1, VARCHAR);
 
-        if (isImpossibleObjectName(catalogDomain) || isImpossibleObjectName(schemaDomain)) {
+        if (isImpossibleObjectName(catalogDomain)) {
             return table.build().cursor();
         }
 
         for (String catalog : listCatalogNames(session, metadata, accessControl, catalogDomain)) {
+            if (isImpossibleObjectName(schemaDomain, hasCaseSensitiveNames(metadata, session, catalog))) {
+                continue;
+            }
             for (String schema : listSchemas(session, metadata, accessControl, catalog)) {
                 table.addRow(schema, catalog);
             }

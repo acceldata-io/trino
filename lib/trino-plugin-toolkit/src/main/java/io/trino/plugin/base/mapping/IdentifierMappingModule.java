@@ -67,6 +67,12 @@ public final class IdentifierMappingModule
                     .in(SINGLETON);
             binder.bind(CachingIdentifierMapping.class).in(SINGLETON);
         }
+        else if (config.isCaseSensitiveNameMatching()) {
+            binder.bind(IdentifierMapping.class)
+                    .annotatedWith(ForRuleBasedIdentifierMapping.class)
+                    .to(CaseSensitiveIdentifierMapping.class)
+                    .in(SINGLETON);
+        }
         else {
             binder.bind(IdentifierMapping.class)
                     .annotatedWith(ForRuleBasedIdentifierMapping.class)

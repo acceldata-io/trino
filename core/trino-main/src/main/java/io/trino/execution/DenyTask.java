@@ -82,7 +82,7 @@ public class DenyTask
 
     private static void executeDenyOnSchema(Session session, Deny statement, Metadata metadata, AccessControl accessControl)
     {
-        CatalogSchemaName schemaName = createCatalogSchemaName(session, statement, Optional.of(statement.getGrantObject().getName()));
+        CatalogSchemaName schemaName = createCatalogSchemaName(session, statement, Optional.of(statement.getGrantObject().getName()), metadata);
 
         if (!metadata.schemaExists(session, schemaName)) {
             throw semanticException(SCHEMA_NOT_FOUND, statement, "Schema '%s' does not exist", schemaName);
@@ -98,7 +98,7 @@ public class DenyTask
 
     private static void executeDenyOnTable(Session session, Deny statement, Metadata metadata, AccessControl accessControl)
     {
-        QualifiedObjectName tableName = createQualifiedObjectName(session, statement, statement.getGrantObject().getName());
+        QualifiedObjectName tableName = createQualifiedObjectName(session, statement, statement.getGrantObject().getName(), metadata);
 
         if (!metadata.isMaterializedView(session, tableName) && !metadata.isView(session, tableName)) {
             RedirectionAwareTableHandle redirection = metadata.getRedirectionAwareTableHandle(session, tableName);

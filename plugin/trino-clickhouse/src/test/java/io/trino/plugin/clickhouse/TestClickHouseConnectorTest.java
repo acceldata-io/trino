@@ -46,6 +46,10 @@ import static io.trino.plugin.clickhouse.ClickHouseTableProperties.PARTITION_BY_
 import static io.trino.plugin.clickhouse.ClickHouseTableProperties.PRIMARY_KEY_PROPERTY;
 import static io.trino.plugin.clickhouse.ClickHouseTableProperties.SAMPLE_BY_PROPERTY;
 import static io.trino.plugin.clickhouse.TestingClickHouseServer.CLICKHOUSE_LATEST_IMAGE;
+import static io.trino.plugin.jdbc.DecimalConfig.DecimalMapping.ALLOW_OVERFLOW;
+import static io.trino.plugin.jdbc.DecimalSessionSessionProperties.DECIMAL_DEFAULT_SCALE;
+import static io.trino.plugin.jdbc.DecimalSessionSessionProperties.DECIMAL_MAPPING;
+import static io.trino.plugin.jdbc.DecimalSessionSessionProperties.DECIMAL_ROUNDING_MODE;
 import static io.trino.plugin.jdbc.JdbcMetadataSessionProperties.DOMAIN_COMPACTION_THRESHOLD;
 import static io.trino.plugin.jdbc.TypeHandlingJdbcSessionProperties.UNSUPPORTED_TYPE_HANDLING;
 import static io.trino.plugin.jdbc.UnsupportedTypeHandling.CONVERT_TO_VARCHAR;
@@ -53,6 +57,7 @@ import static io.trino.spi.type.VarcharType.VARCHAR;
 import static io.trino.testing.MaterializedResult.resultBuilder;
 import static io.trino.testing.TestingNames.randomNameSuffix;
 import static java.lang.String.format;
+import static java.math.RoundingMode.HALF_UP;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.abort;
@@ -76,7 +81,6 @@ public class TestClickHouseConnectorTest
             case SUPPORTS_AGGREGATION_PUSHDOWN_REGRESSION,
                  SUPPORTS_AGGREGATION_PUSHDOWN_STDDEV,
                  SUPPORTS_AGGREGATION_PUSHDOWN_VARIANCE,
-                 SUPPORTS_ARRAY,
                  SUPPORTS_DELETE,
                  SUPPORTS_DROP_NOT_NULL_CONSTRAINT,
                  SUPPORTS_MAP_TYPE,
@@ -486,7 +490,7 @@ public class TestClickHouseConnectorTest
                 .isEqualTo(format("" +
                         "CREATE TABLE clickhouse.tpch.%s (\n" +
                         "   id integer NOT NULL,\n" +
-                        "   x smallint NOT NULL,\n" +
+                        "   x boolean NOT NULL,\n" +
                         "   y varchar NOT NULL\n" +
                         ")\n" +
                         "WITH (\n" +
@@ -568,10 +572,116 @@ public class TestClickHouseConnectorTest
     @Override
     protected TestTable createTableWithUnsupportedColumn()
     {
+        // Int128 is not supported by the connector
         return new TestTable(
                 onRemoteDatabase(),
                 "tpch.test_unsupported_column_present",
-                "(one bigint, two Array(UInt8), three String) ENGINE=Log");
+                "(one bigint, two Int128, three String) ENGINE=Log");
+    }
+
+    @Test
+    @Override
+    public void testInsertArray()
+    {
+        // ClickHouse stores omitted non-nullable Array columns as [] (empty array) by default.
+        // Trino throws on out-of-bounds array subscript access (b[1] on an empty array), so both columns must be set.
+        try (TestTable table = newTrinoTable("test_insert_array_", "(a ARRAY<DOUBLE>, b ARRAY<BIGINT>)")) {
+            assertUpdate("INSERT INTO " + table.getName() + " (a, b) VALUES (ARRAY[null], ARRAY[null])", 1);
+            assertUpdate("INSERT INTO " + table.getName() + " (a, b) VALUES (ARRAY[1.23E1], ARRAY[1.23E1])", 1);
+            assertQuery("SELECT a[1], b[1] FROM " + table.getName(), "VALUES (null, null), (12.3, 12)");
+        }
+    }
+
+    @Test
+    public void testInsertArrayNullableElements()
+    {
+        // Array(Nullable(T)) preserves null elements; plain Array(T) in ClickHouse converts null to the type default (e.g. 0 for numbers).
+        // This test verifies that our Array(Nullable(T)) write mapping correctly preserves mixed null/non-null elements.
+        try (TestTable table = newTrinoTable("test_insert_array_nullable_", "(col ARRAY<INTEGER>)")) {
+            assertUpdate("INSERT INTO " + table.getName() + " VALUES (ARRAY[1, null, 3])", 1);
+            assertQuery("SELECT col[1], col[2], col[3] FROM " + table.getName(), "VALUES (1, null, 3)");
+        }
+    }
+
+    @Test
+    public void testInsertArrayPrimitiveTypes()
+    {
+        try (TestTable table = newTrinoTable("test_insert_array_boolean_", "(col ARRAY<BOOLEAN>)")) {
+            assertUpdate("INSERT INTO " + table.getName() + " VALUES (ARRAY[true, false])", 1);
+            assertQuery("SELECT col[1], col[2] FROM " + table.getName(), "VALUES (true, false)");
+        }
+        try (TestTable table = newTrinoTable("test_insert_array_integer_", "(col ARRAY<INTEGER>)")) {
+            assertUpdate("INSERT INTO " + table.getName() + " VALUES (ARRAY[-2147483648, 2147483647])", 1);
+            assertQuery("SELECT col[1], col[2] FROM " + table.getName(), "VALUES (-2147483648, 2147483647)");
+        }
+        try (TestTable table = newTrinoTable("test_insert_array_tinyint_", "(col ARRAY<TINYINT>)")) {
+            assertUpdate("INSERT INTO " + table.getName() + " VALUES (ARRAY[TINYINT '-128', TINYINT '127'])", 1);
+            assertQuery("SELECT col[1], col[2] FROM " + table.getName(), "VALUES (-128, 127)");
+        }
+        try (TestTable table = newTrinoTable("test_insert_array_smallint_", "(col ARRAY<SMALLINT>)")) {
+            assertUpdate("INSERT INTO " + table.getName() + " VALUES (ARRAY[SMALLINT '-32768', SMALLINT '32767'])", 1);
+            assertQuery("SELECT col[1], col[2] FROM " + table.getName(), "VALUES (-32768, 32767)");
+        }
+        try (TestTable table = newTrinoTable("test_insert_array_real_", "(col ARRAY<REAL>)")) {
+            assertUpdate("INSERT INTO " + table.getName() + " VALUES (ARRAY[REAL '1.5', REAL '-2.5'])", 1);
+            assertQuery("SELECT col[1], col[2] FROM " + table.getName(), "VALUES (1.5, -2.5)");
+        }
+        try (TestTable table = newTrinoTable("test_insert_array_date_", "(col ARRAY<DATE>)")) {
+            assertUpdate("INSERT INTO " + table.getName() + " VALUES (ARRAY[DATE '2024-01-01'])", 1);
+            assertQuery("SELECT col[1] FROM " + table.getName(), "VALUES (DATE '2024-01-01')");
+        }
+        try (TestTable table = newTrinoTable("test_insert_array_varchar_", "(col ARRAY<VARCHAR>)")) {
+            assertUpdate("INSERT INTO " + table.getName() + " VALUES (ARRAY[VARCHAR 'hello', VARCHAR 'world'])", 1);
+            assertQuery("SELECT col[1], col[2] FROM " + table.getName(), "VALUES ('hello', 'world')");
+        }
+    }
+
+    @Test
+    public void testInsertWithoutSelectPrivilege()
+    {
+        String user = "insert_only_" + randomNameSuffix();
+        String catalog = "clickhouse_" + user;
+        try (TestTable table = new TestTable(onRemoteDatabase(), "tpch.test_insert_only", "(id Int32, s String) ENGINE=Log")) {
+            onRemoteDatabase().execute("CREATE USER %s IDENTIFIED WITH plaintext_password BY 'insert'".formatted(user));
+            try {
+                onRemoteDatabase().execute("GRANT INSERT ON %s TO %s".formatted(table.getName(), user));
+                // ClickHouse requires this privilege to use the input() table function
+                onRemoteDatabase().execute("GRANT CREATE TEMPORARY TABLE ON *.* TO " + user);
+                getQueryRunner().createCatalog(catalog, "clickhouse", ImmutableMap.of(
+                        "connection-url", clickhouseServer.getJdbcUrl(),
+                        "connection-user", user,
+                        "connection-password", "insert",
+                        "clickhouse.map-string-as-varchar", "true",
+                        "insert.non-transactional-insert.enabled", "true"));
+
+                assertUpdate("INSERT INTO %s.%s VALUES (1, 'a'), (2, 'b')".formatted(catalog, table.getName()), 2);
+                assertQuery("SELECT * FROM " + table.getName(), "VALUES (1, 'a'), (2, 'b')");
+            }
+            finally {
+                onRemoteDatabase().execute("DROP USER " + user);
+            }
+        }
+    }
+
+    @Test
+    public void testInsertNestedArray()
+    {
+        try (TestTable table = newTrinoTable("test_insert_nested_array_", "(a ARRAY<ARRAY<INTEGER>>)")) {
+            assertUpdate("INSERT INTO " + table.getName() + " VALUES (ARRAY[ARRAY[1, 2], ARRAY[3, 4]])", 1);
+            assertQuery("SELECT a[1][1], a[1][2], a[2][1] FROM " + table.getName(), "VALUES (1, 2, 3)");
+        }
+    }
+
+    @Test
+    public void testInsertArrayIpAddress()
+    {
+        // Verifies that toWriteMapping(ipAddressType) → IPv6 is correctly wired,
+        // which is required when toWriteMapping(ArrayType) recurses over element types.
+        // Table creation exercises getColumnDefinitionSql → toWriteMapping(array(ipaddress)) → toWriteMapping(ipAddressType).
+        try (TestTable table = newTrinoTable("test_insert_array_ipaddress_", "(col ARRAY<IPADDRESS>)")) {
+            assertUpdate("INSERT INTO " + table.getName() + " VALUES (ARRAY[IPADDRESS '1.2.3.4', IPADDRESS '::1'])", 1);
+            assertQuerySucceeds("SELECT col[1], col[2] FROM " + table.getName());
+        }
     }
 
     @Override
@@ -609,19 +719,41 @@ public class TestClickHouseConnectorTest
         return Optional.of(dataMappingTestSetup);
     }
 
-    // TODO: Remove override once decimal predicate pushdown is implemented (https://github.com/trinodb/trino/issues/7100)
+    // ClickHouse does not push down avg over decimal columns
     @Test
     @Override
     public void testNumericAggregationPushdown()
     {
         String schemaName = getSession().getSchema().orElseThrow();
-        try (TestTable testTable = createAggregationTestTable(schemaName + ".test_aggregation_pushdown",
+        try (TestTable emptyTable = createAggregationTestTable(schemaName + ".test_num_agg_pd", ImmutableList.of())) {
+            assertThat(query("SELECT min(short_decimal), min(long_decimal), min(a_bigint), min(t_double) FROM " + emptyTable.getName())).isFullyPushedDown();
+            assertThat(query("SELECT max(short_decimal), max(long_decimal), max(a_bigint), max(t_double) FROM " + emptyTable.getName())).isFullyPushedDown();
+            assertThat(query("SELECT sum(short_decimal), sum(long_decimal), sum(a_bigint), sum(t_double) FROM " + emptyTable.getName())).isFullyPushedDown();
+            assertThat(query("SELECT avg(a_bigint), avg(t_double) FROM " + emptyTable.getName())).isFullyPushedDown();
+            assertThat(query("SELECT avg(short_decimal), avg(long_decimal) FROM " + emptyTable.getName())).isNotFullyPushedDown(AggregationNode.class);
+        }
+
+        try (TestTable testTable = createAggregationTestTable(
+                schemaName + ".test_aggregation_pushdown",
                 ImmutableList.of("100.000, 100000000.000000000, 100.000, 100000000", "123.321, 123456789.987654321, 123.321, 123456789"))) {
             assertThat(query("SELECT min(short_decimal), min(long_decimal), min(a_bigint), min(t_double) FROM " + testTable.getName())).isFullyPushedDown();
             assertThat(query("SELECT max(short_decimal), max(long_decimal), max(a_bigint), max(t_double) FROM " + testTable.getName())).isFullyPushedDown();
             assertThat(query("SELECT sum(short_decimal), sum(long_decimal), sum(a_bigint), sum(t_double) FROM " + testTable.getName())).isFullyPushedDown();
             assertThat(query("SELECT avg(a_bigint), avg(t_double) FROM " + testTable.getName())).isFullyPushedDown();
             assertThat(query("SELECT avg(short_decimal), avg(long_decimal) FROM " + testTable.getName())).isNotFullyPushedDown(AggregationNode.class);
+
+            // WHERE on aggregation column
+            assertThat(query("SELECT min(short_decimal), min(long_decimal) FROM " + testTable.getName() + " WHERE short_decimal < 110 AND long_decimal < 124")).isFullyPushedDown();
+            // WHERE on non-aggregation column
+            assertThat(query("SELECT min(long_decimal) FROM " + testTable.getName() + " WHERE short_decimal < 110")).isFullyPushedDown();
+            // GROUP BY
+            assertThat(query("SELECT short_decimal, min(long_decimal) FROM " + testTable.getName() + " GROUP BY short_decimal")).isFullyPushedDown();
+            // GROUP BY with WHERE on both grouping and aggregation column
+            assertThat(query("SELECT short_decimal, min(long_decimal) FROM " + testTable.getName() + " WHERE short_decimal < 110 AND long_decimal < 124 GROUP BY short_decimal")).isFullyPushedDown();
+            // GROUP BY with WHERE on grouping column
+            assertThat(query("SELECT short_decimal, min(long_decimal) FROM " + testTable.getName() + " WHERE short_decimal < 110 GROUP BY short_decimal")).isFullyPushedDown();
+            // GROUP BY with WHERE on aggregation column
+            assertThat(query("SELECT short_decimal, min(long_decimal) FROM " + testTable.getName() + " WHERE long_decimal < 124 GROUP BY short_decimal")).isFullyPushedDown();
         }
     }
 
@@ -828,6 +960,66 @@ public class TestClickHouseConnectorTest
     }
 
     @Test
+    public void testDecimalPredicatePushdown()
+    {
+        try (TestTable table = new TestTable(
+                onRemoteDatabase(),
+                "tpch.test_decimal_predicate_pushdown",
+                "(id Int32, short_decimal Nullable(Decimal(12, 2)), long_decimal Nullable(Decimal(38, 10))) ENGINE=Log",
+                ImmutableList.of(
+                        "1, toDecimal64('10.00', 2), toDecimal128('12345678901234567890.1234567890', 10)",
+                        "2, toDecimal64('15.50', 2), toDecimal128('12345678901234567890.1234567891', 10)",
+                        "3, toDecimal64('20.00', 2), NULL",
+                        "4, NULL, toDecimal128('-1.5', 10)"))) {
+            assertThat(query("SELECT id FROM %s WHERE short_decimal = 15.5".formatted(table.getName())))
+                    .matches("VALUES 2")
+                    .isFullyPushedDown();
+            assertThat(query("SELECT id FROM %s WHERE short_decimal BETWEEN 10 AND 15.5".formatted(table.getName())))
+                    .matches("VALUES 1, 2")
+                    .isFullyPushedDown();
+            assertThat(query("SELECT id FROM %s WHERE short_decimal IN (10, 20)".formatted(table.getName())))
+                    .matches("VALUES 1, 3")
+                    .isFullyPushedDown();
+            assertThat(query("SELECT id FROM %s WHERE short_decimal IS NULL".formatted(table.getName())))
+                    .matches("VALUES 4")
+                    .isFullyPushedDown();
+
+            // A Float64 literal cannot tell these values apart
+            assertThat(query("SELECT id FROM %s WHERE long_decimal = DECIMAL '12345678901234567890.1234567891'".formatted(table.getName())))
+                    .matches("VALUES 2")
+                    .isFullyPushedDown();
+            assertThat(query("SELECT id FROM %s WHERE long_decimal > DECIMAL '12345678901234567890.1234567890'".formatted(table.getName())))
+                    .matches("VALUES 2")
+                    .isFullyPushedDown();
+            assertThat(query("SELECT id FROM %s WHERE long_decimal IN (DECIMAL '12345678901234567890.1234567890', DECIMAL '-1.5')".formatted(table.getName())))
+                    .matches("VALUES 1, 4")
+                    .isFullyPushedDown();
+            assertThat(query("SELECT id FROM %s WHERE long_decimal IS NULL".formatted(table.getName())))
+                    .matches("VALUES 3")
+                    .isFullyPushedDown();
+        }
+    }
+
+    @Test
+    public void testRoundedDecimalPredicateNotPushedDown()
+    {
+        Session allowOverflow = Session.builder(getSession())
+                .setCatalogSessionProperty("clickhouse", DECIMAL_MAPPING, ALLOW_OVERFLOW.name())
+                .setCatalogSessionProperty("clickhouse", DECIMAL_DEFAULT_SCALE, "10")
+                .setCatalogSessionProperty("clickhouse", DECIMAL_ROUNDING_MODE, HALF_UP.name())
+                .build();
+        try (TestTable table = new TestTable(
+                onRemoteDatabase(),
+                "tpch.test_rounded_decimal_predicate",
+                "(id Int32, huge_decimal Nullable(Decimal(50, 10))) ENGINE=Log",
+                ImmutableList.of("1, toDecimal256('1.5', 10)", "2, toDecimal256('2.5', 10)"))) {
+            assertThat(query(allowOverflow, "SELECT id FROM %s WHERE huge_decimal = 1.5".formatted(table.getName())))
+                    .matches("VALUES 1")
+                    .isNotFullyPushedDown(FilterNode.class);
+        }
+    }
+
+    @Test
     public void testOrPredicatePushdown()
     {
         assertThat(query("SELECT * FROM nation WHERE name = 'ALGERIA' OR comment = 'comment'")).isFullyPushedDown();
@@ -910,8 +1102,8 @@ public class TestClickHouseConnectorTest
                 "tpch.test_textual_predicate_pushdown",
                 """
                 (
-                unsupported_1 Point,
-                unsupported_2 Point,
+                unsupported_1 Int128,
+                unsupported_2 Int128,
                 some_column String,
                 a_string String,
                 a_string_alias Text,
@@ -926,12 +1118,12 @@ public class TestClickHouseConnectorTest
                 ENGINE=Log
                 """,
                 List.of(
-                        "(10, 10), (10, 10), 'z', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', 'hello', 'world'",
-                        "(10, 10), (10, 10), 'z', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_'",
-                        "(10, 10), (10, 10), 'z', '%', '%', '%', '%', '%', '%', '%', '%', '%', '%'",
-                        "(10, 10), (10, 10), 'z', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'",
-                        "(10, 10), (10, 10), 'z', 'b', 'b', 'b', 'b', 'b', 'b', 'b', 'b', 'b', 'b'",
-                        "(10, 10), (10, 10), 'z', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c'"))) {
+                        "10, 10, 'z', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', '\\\\', 'hello', 'world'",
+                        "10, 10, 'z', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_'",
+                        "10, 10, 'z', '%', '%', '%', '%', '%', '%', '%', '%', '%', '%'",
+                        "10, 10, 'z', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'",
+                        "10, 10, 'z', 'b', 'b', 'b', 'b', 'b', 'b', 'b', 'b', 'b', 'b'",
+                        "10, 10, 'z', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c'"))) {
             assertThat(query("SELECT some_column FROM " + table.getName() + " WHERE a_string = 'b'")).isFullyPushedDown();
             assertThat(query("SELECT some_column FROM " + table.getName() + " WHERE a_string = 'b'" + withConnectorExpression)).isFullyPushedDown();
             assertThat(query("SELECT some_column FROM " + table.getName() + " WHERE a_string_alias = 'b'")).isFullyPushedDown();
@@ -1135,6 +1327,32 @@ public class TestClickHouseConnectorTest
     {
         assertUpdate("CALL system.execute('SELECT 1')");
         assertQueryFails("CALL system.execute('invalid')", "(?s)Failed to execute query.*");
+    }
+
+    @Test
+    public void testInsertIntoDistributedTable()
+    {
+        // Insert stages the rows in a temporary table before moving them into the target table. That temporary table
+        // must not be a Distributed table over the same underlying tables, otherwise the staged rows are already
+        // visible in the target and then inserted a second time.
+        // https://github.com/trinodb/trino/issues/7600
+        String localTableName = "test_distributed_insert_local_" + randomNameSuffix();
+        String distributedTableName = "test_distributed_insert_" + randomNameSuffix();
+        try {
+            // The 'default' cluster is defined by the ClickHouse server's default configuration
+            onRemoteDatabase().execute("CREATE TABLE tpch." + localTableName + " (id Int64, name String) ENGINE = MergeTree ORDER BY id");
+            onRemoteDatabase().execute("CREATE TABLE tpch." + distributedTableName + " (id Int64, name String) ENGINE = Distributed('default', 'tpch', '" + localTableName + "', rand())");
+
+            assertUpdate("INSERT INTO " + distributedTableName + " VALUES (1, 'a')", 1);
+            assertUpdate("INSERT INTO " + distributedTableName + " SELECT * FROM (VALUES (2, 'b'), (3, 'c'))", 2);
+
+            assertQuery("SELECT count(*) FROM " + distributedTableName, "VALUES 3");
+            assertQueryOrdered("SELECT id, name FROM " + distributedTableName + " ORDER BY id", "VALUES (1, 'a'), (2, 'b'), (3, 'c')");
+        }
+        finally {
+            onRemoteDatabase().execute("DROP TABLE IF EXISTS tpch." + distributedTableName);
+            onRemoteDatabase().execute("DROP TABLE IF EXISTS tpch." + localTableName);
+        }
     }
 
     @Override

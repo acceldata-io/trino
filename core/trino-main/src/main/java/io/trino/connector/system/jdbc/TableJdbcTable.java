@@ -50,6 +50,7 @@ import static io.trino.connector.system.jdbc.FilterUtil.tryGetSingleVarcharValue
 import static io.trino.metadata.MetadataListing.getRelationTypes;
 import static io.trino.metadata.MetadataListing.listCatalogNames;
 import static io.trino.metadata.MetadataUtil.TableMetadataBuilder.tableMetadataBuilder;
+import static io.trino.metadata.MetadataUtil.hasCaseSensitiveNames;
 import static io.trino.spi.connector.FixedSplitSource.emptySplitSource;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
@@ -108,7 +109,9 @@ public class TableJdbcTable
         Domain tableDomain = constraint.getDomain(2, VARCHAR);
         Domain typeDomain = constraint.getDomain(3, VARCHAR);
 
-        if (isImpossibleObjectName(schemaDomain) || isImpossibleObjectName(tableDomain)) {
+        String catalog = systemSplit.getCatalogName().orElseThrow();
+        boolean caseSensitiveNames = hasCaseSensitiveNames(metadata, session, catalog);
+        if (isImpossibleObjectName(schemaDomain, caseSensitiveNames) || isImpossibleObjectName(tableDomain, caseSensitiveNames)) {
             return table.build().cursor();
         }
 
@@ -121,7 +124,6 @@ public class TableJdbcTable
             return table.build().cursor();
         }
 
-        String catalog = systemSplit.getCatalogName().orElseThrow();
         QualifiedTablePrefix prefix = tablePrefix(catalog, schemaFilter, tableFilter);
 
         getRelationTypes(session, metadata, accessControl, prefix).forEach((name, type) -> {

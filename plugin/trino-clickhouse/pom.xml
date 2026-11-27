@@ -231,4 +231,20 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- ClickHouse JDBC 0.10 marks the V1 driver types as deprecated, and this line compiles with -Werror. -->
+                    <showDeprecation>false</showDeprecation>
+                    <compilerArgs combine.self="append">
+                        <arg>-Xlint:-deprecation</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

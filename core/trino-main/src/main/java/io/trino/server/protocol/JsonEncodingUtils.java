@@ -53,6 +53,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static com.google.common.base.Verify.verify;
+import static io.airlift.slice.SliceUtf8.fixInvalidUtf8;
+import static io.airlift.slice.SliceUtf8.isAscii;
 import static io.trino.spi.StandardErrorCode.SERIALIZATION_ERROR;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
@@ -267,6 +269,10 @@ public class JsonEncodingUtils
                 return;
             }
             Slice slice = VARCHAR.getSlice(block, position);
+            if (!isAscii(slice)) {
+                // JSON text must be valid UTF-8, and the Java client rejects anything else
+                slice = fixInvalidUtf8(slice);
+            }
             generator.writeUTF8String(slice.byteArray(), slice.byteArrayOffset(), slice.length());
         }
     }

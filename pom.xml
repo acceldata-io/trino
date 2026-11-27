@@ -292,7 +292,7 @@
             <dependency>
                 <groupId>io.netty</groupId>
                 <artifactId>netty-bom</artifactId>
-                <version>4.1.137.Final</version>
+                <version>4.1.138.Final</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -357,7 +357,7 @@
                 <!-- https://github.com/ClickHouse/clickhouse-docs/pull/2408/files -->
                 <groupId>at.yawk.lz4</groupId>
                 <artifactId>lz4-java</artifactId>
-                <version>1.10.1</version>
+                <version>1.10.4</version>
             </dependency>
 
             <dependency>
@@ -457,8 +457,14 @@
             <dependency>
                 <groupId>com.clickhouse</groupId>
                 <artifactId>clickhouse-jdbc</artifactId>
-                <version>0.7.1-patch1</version>
+                <version>0.10.0</version>
                 <classifier>all</classifier>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.google.guava</groupId>
+                        <artifactId>listenablefuture</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
 
             <dependency>

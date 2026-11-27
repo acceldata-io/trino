@@ -13,7 +13,7 @@
  */
 package io.trino.plugin.clickhouse;
 
-import com.clickhouse.jdbc.ClickHouseDriver;
+import com.clickhouse.jdbc.DriverV1;
 import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Provides;
@@ -28,6 +28,7 @@ import io.trino.plugin.jdbc.DriverConnectionFactory;
 import io.trino.plugin.jdbc.ForBaseJdbc;
 import io.trino.plugin.jdbc.JdbcClient;
 import io.trino.plugin.jdbc.JdbcMetadataConfig;
+import io.trino.plugin.jdbc.QueryBuilder;
 import io.trino.plugin.jdbc.credential.CredentialProvider;
 import io.trino.plugin.jdbc.ptf.Query;
 import io.trino.spi.function.table.ConnectorTableFunction;
@@ -37,6 +38,7 @@ import java.util.Properties;
 import static com.clickhouse.client.config.ClickHouseClientOption.USE_BINARY_STRING;
 import static com.clickhouse.jdbc.JdbcConfig.PROP_EXTERNAL_DATABASE;
 import static com.google.inject.multibindings.Multibinder.newSetBinder;
+import static com.google.inject.multibindings.OptionalBinder.newOptionalBinder;
 import static io.airlift.configuration.ConfigBinder.configBinder;
 import static io.trino.plugin.clickhouse.ClickHouseClient.DEFAULT_DOMAIN_COMPACTION_THRESHOLD;
 import static io.trino.plugin.jdbc.JdbcModule.bindSessionPropertiesProvider;
@@ -51,6 +53,7 @@ public class ClickHouseClientModule
         ConfigBinder.configBinder(binder).bindConfig(ClickHouseConfig.class);
         bindSessionPropertiesProvider(binder, ClickHouseSessionProperties.class);
         binder.bind(JdbcClient.class).annotatedWith(ForBaseJdbc.class).to(ClickHouseClient.class).in(Scopes.SINGLETON);
+        newOptionalBinder(binder, QueryBuilder.class).setBinding().to(ClickHouseQueryBuilder.class).in(Scopes.SINGLETON);
         bindTablePropertiesProvider(binder, ClickHouseTableProperties.class);
         configBinder(binder).bindConfigDefaults(JdbcMetadataConfig.class, config -> config.setDomainCompactionThreshold(DEFAULT_DOMAIN_COMPACTION_THRESHOLD));
         binder.install(new DecimalModule());
@@ -70,7 +73,7 @@ public class ClickHouseClientModule
         // https://github.com/ClickHouse/clickhouse-java/issues/1584
         // in Clickhouse itself it has been left `true` by default only for backward compatibility.
         properties.setProperty(PROP_EXTERNAL_DATABASE, "false");
-        return new ClickHouseConnectionFactory(DriverConnectionFactory.builder(new ClickHouseDriver(), config.getConnectionUrl(), credentialProvider)
+        return new ClickHouseConnectionFactory(DriverConnectionFactory.builder(new DriverV1(), config.getConnectionUrl(), credentialProvider)
                 .setConnectionProperties(properties)
                 .setOpenTelemetry(openTelemetry)
                 .build());

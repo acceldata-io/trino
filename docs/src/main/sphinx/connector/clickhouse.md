@@ -93,6 +93,43 @@ configured connector to create a catalog named `sales`.
 ```{include} jdbc-case-insensitive-matching.fragment
 ```
 
+### Case-sensitive schema and table names
+
+ClickHouse database and table names are case-sensitive, so one database can
+contain both `customers` and `Customers`. Set `case-sensitive-name-matching` to
+`true` in the catalog properties file to use such names in Trino:
+
+```properties
+case-sensitive-name-matching=true
+```
+
+With this property:
+
+- A quoted name keeps its case. `"Customers"` refers to the ClickHouse table
+  `Customers`, while `customers`, `"customers"`, and the unquoted `Customers`
+  refer to `customers`. Database names work the same way.
+- `SHOW SCHEMAS`, `SHOW TABLES`, `information_schema`, and the metadata of the
+  JDBC driver list schema and table names with their exact case.
+- Statements such as `DESCRIBE`, `SHOW CREATE TABLE`, `INSERT`,
+  `CREATE TABLE`, `ALTER TABLE`, and `DROP TABLE` act on the table with the
+  exact quoted name.
+
+The following limitations apply:
+
+- Column names are always lowercase.
+- `USE` and the default schema of a client session are lowercase. Qualify table
+  names with a schema name that contains uppercase letters instead.
+- The property cannot be combined with `case-insensitive-name-matching` or
+  `case-insensitive-name-matching.config-file`.
+- Access control receives the exact names. Patterns in file-based access control
+  are case-sensitive regular expressions. With Apache Ranger, a schema or table
+  name that contains uppercase letters is sent with a leading double quote, for
+  example `"Customers`, so use that form in policy resources. Such values are
+  matched case-sensitively, so policies tell apart two names that differ only
+  by case, such as `Customers` and `CUSTOMERS`. Trino turns on
+  `quotedCaseSensitive` for the schema and table resources when it loads the
+  policies, so the Trino service definition in Ranger does not need changes.
+
 ## Querying ClickHouse
 
 The ClickHouse connector provides a schema for every ClickHouse *database*.
@@ -183,9 +220,12 @@ to the following table:
 * - ClickHouse type
   - Trino type
   - Notes
+* - `Bool`
+  - `BOOLEAN`
+  -
 * - `Int8`
   - `TINYINT`
-  - `TINYINT`, `BOOL`, `BOOLEAN`, and `INT1` are aliases of `Int8`
+  - `TINYINT` and `INT1` are aliases of `Int8`
 * - `Int16`
   - `SMALLINT`
   -  `SMALLINT` and `INT2` are aliases of `Int16`
@@ -219,17 +259,31 @@ to the following table:
 * - `FixedString`
   - `VARBINARY`
   - Enabling `clickhouse.map-string-as-varchar` config property changes the
-    mapping to `VARCHAR`
+    mapping to `VARCHAR`. The bytes are read unchanged, including bytes that
+    are not valid UTF-8. Query results show such bytes as the replacement
+    character U+FFFD, and {func}`to_utf8` returns the original bytes.
 * - `String`
   - `VARBINARY`
   - Enabling `clickhouse.map-string-as-varchar` config property changes the
-    mapping to `VARCHAR`
+    mapping to `VARCHAR`. The bytes are read unchanged, including bytes that
+    are not valid UTF-8. Query results show such bytes as the replacement
+    character U+FFFD, and {func}`to_utf8` returns the original bytes.
 * - `Date`
   - `DATE`
   -
 * - `DateTime[(timezone)]`
   - `TIMESTAMP(0) [WITH TIME ZONE]`
-  -
+  - With a time zone, values are returned with the offset of the column time
+    zone. Values are transferred in UTC, so times repeated when clocks are set
+    back keep their instant.
+* - `DateTime64(p)`
+  - `TIMESTAMP(p)`
+  - Precision `p` from 0 to 9 is read and written in full.
+* - `DateTime64(p, timezone)`
+  - `TIMESTAMP(p) WITH TIME ZONE`
+  - Values are returned with the offset of the column time zone. Values are
+    transferred in UTC, so times repeated when clocks are set back keep their
+    instant.
 * - `IPv4`
   - `IPADDRESS`
   -
@@ -245,9 +299,39 @@ to the following table:
 * - `UUID`
   - `UUID`
   -
+* - `Array(T)`
+  - `array(T)`
+  - Element type `T` is mapped according to the same type mapping rules.
+    Nested arrays and nullable elements via `Array(Nullable(T))` are supported.
+* - `Map(K, V)`
+  - `map(K, V)`
+  - Key and value types are mapped according to the same type mapping rules.
+    For a duplicate key, the last value is returned.
+* - `Tuple(T1, T2, ...)`
+  - `row(T1, T2, ...)`
+  - Field names of a named tuple are kept.
+* - `Point`
+  - `row(x double, y double)`
+  -
+* - `Ring`, `LineString`
+  - `array(row(x double, y double))`
+  -
+* - `Polygon`, `MultiLineString`
+  - `array(array(row(x double, y double)))`
+  -
+* - `MultiPolygon`
+  - `array(array(array(row(x double, y double))))`
+  -
 :::
 
 No other types are supported.
+
+Values can be inserted into existing `Array`, `Map`, `Tuple`, and geo columns.
+Values nested in these types follow the same rules as top-level values: zoned
+`DateTime` and `DateTime64` values are transferred in UTC and returned with the
+offset of their time zone, and inserted values must be in the same range.
+Strings nested in `Map` and `Tuple` values are decoded as UTF-8 by the
+ClickHouse JDBC driver.
 
 ### Trino type to ClickHouse type mapping
 
@@ -262,11 +346,11 @@ to the following table:
   - ClickHouse type
   - Notes
 * - `BOOLEAN`
-  - `UInt8`
+  - `Bool`
   -
 * - `TINYINT`
   - `Int8`
-  - `TINYINT`, `BOOL`, `BOOLEAN`, and `INT1` are aliases of `Int8`
+  - `TINYINT` and `INT1` are aliases of `Int8`
 * - `SMALLINT`
   - `Int16`
   -  `SMALLINT` and `INT2` are aliases of `Int16`
@@ -304,6 +388,11 @@ to the following table:
 * - `UUID`
   - `UUID`
   -
+* - `array(T)`
+  - `Array(Nullable(T))`
+  - Element type `T` is mapped according to the same type mapping rules.
+    For nested arrays, only the innermost scalar element is wrapped in `Nullable`;
+    intermediate `Array` levels are not wrapped because ClickHouse does not support `Nullable(Array(T))`.
 :::
 
 No other types are supported.
@@ -329,6 +418,12 @@ statements, the connector supports the following features:
 (clickhouse-insert)=
 ```{include} non-transactional-insert.fragment
 ```
+
+Inserts into existing tables read their data from the ClickHouse `input()`
+table function, so the ClickHouse user does not need the `SELECT` privilege on
+the table. It needs `INSERT` on the table and `CREATE TEMPORARY TABLE`, which
+ClickHouse requires for table functions. With the default transactional inserts,
+the user also needs the privileges to create, read and drop the temporary table.
 
 (clickhouse-alter-table)=
 ```{include} alter-schema-limitation.fragment
@@ -398,6 +493,10 @@ The connector supports pushdown for a number of operations:
 - {func}`max`
 - {func}`min`
 - {func}`sum`
+
+Filters on `Decimal` columns are pushed down. Columns with a precision above 38
+are an exception: they are mapped to `NUMBER`, or rounded to `DECIMAL(38, s)`
+with `decimal-mapping` set to `ALLOW_OVERFLOW`, and Trino applies the filters.
 
 
 ```{include} pushdown-correctness-behavior.fragment

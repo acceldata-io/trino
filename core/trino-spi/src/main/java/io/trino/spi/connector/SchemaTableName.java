@@ -14,10 +14,12 @@
 package io.trino.spi.connector;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.Objects;
 
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 import static io.airlift.slice.SizeOf.estimatedSizeOf;
 import static io.airlift.slice.SizeOf.instanceSize;
 import static io.trino.spi.connector.SchemaUtil.checkNotEmpty;
@@ -30,16 +32,40 @@ public final class SchemaTableName
     private final String schemaName;
     private final String tableName;
 
-    @JsonCreator
-    public SchemaTableName(@JsonProperty("schema") String schemaName, @JsonProperty("table") String tableName)
+    public SchemaTableName(String schemaName, String tableName)
     {
-        this.schemaName = checkNotEmpty(schemaName, "schemaName").toLowerCase(ENGLISH);
-        this.tableName = checkNotEmpty(tableName, "tableName").toLowerCase(ENGLISH);
+        this(schemaName, tableName, false);
+    }
+
+    private SchemaTableName(String schemaName, String tableName, boolean caseSensitive)
+    {
+        checkNotEmpty(schemaName, "schemaName");
+        checkNotEmpty(tableName, "tableName");
+        this.schemaName = caseSensitive ? schemaName : schemaName.toLowerCase(ENGLISH);
+        this.tableName = caseSensitive ? tableName : tableName.toLowerCase(ENGLISH);
     }
 
     public static SchemaTableName schemaTableName(String schemaName, String tableName)
     {
         return new SchemaTableName(schemaName, tableName);
+    }
+
+    /**
+     * Creates a name that keeps the case of the schema and table names, for catalogs with
+     * {@link ConnectorCapabilities#CASE_SENSITIVE_SCHEMA_AND_TABLE_NAMES}.
+     */
+    public static SchemaTableName caseSensitiveSchemaTableName(String schemaName, String tableName)
+    {
+        return new SchemaTableName(schemaName, tableName, true);
+    }
+
+    @JsonCreator
+    public static SchemaTableName fromJson(
+            @JsonProperty("schema") String schemaName,
+            @JsonProperty("table") String tableName,
+            @JsonProperty("caseSensitive") Boolean caseSensitive)
+    {
+        return new SchemaTableName(schemaName, tableName, Boolean.TRUE.equals(caseSensitive));
     }
 
     @JsonProperty("schema")
@@ -52,6 +78,17 @@ public final class SchemaTableName
     public String getTableName()
     {
         return tableName;
+    }
+
+    /**
+     * Whether the name keeps uppercase letters, which only names in catalogs with case-sensitive
+     * schema and table names can have.
+     */
+    @JsonProperty("caseSensitive")
+    @JsonInclude(NON_DEFAULT)
+    public boolean isCaseSensitive()
+    {
+        return !schemaName.equals(schemaName.toLowerCase(ENGLISH)) || !tableName.equals(tableName.toLowerCase(ENGLISH));
     }
 
     @Override

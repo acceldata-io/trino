@@ -27,9 +27,12 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.google.common.util.concurrent.Futures.immediateVoidFuture;
+import static io.trino.metadata.MetadataUtil.canonicalName;
 import static io.trino.metadata.MetadataUtil.createCatalogSchemaName;
+import static io.trino.metadata.MetadataUtil.hasCaseSensitiveNames;
 import static io.trino.spi.StandardErrorCode.SCHEMA_ALREADY_EXISTS;
 import static io.trino.spi.StandardErrorCode.SCHEMA_NOT_FOUND;
+import static io.trino.spi.connector.CatalogSchemaName.caseSensitiveCatalogSchemaName;
 import static io.trino.sql.analyzer.SemanticExceptions.semanticException;
 import static java.util.Objects.requireNonNull;
 
@@ -60,8 +63,10 @@ public class RenameSchemaTask
             WarningCollector warningCollector)
     {
         Session session = stateMachine.getSession();
-        CatalogSchemaName source = createCatalogSchemaName(session, statement, Optional.of(statement.getSource()));
-        CatalogSchemaName target = new CatalogSchemaName(source.getCatalogName(), statement.getTarget().getValue());
+        CatalogSchemaName source = createCatalogSchemaName(session, statement, Optional.of(statement.getSource()), metadata);
+        boolean caseSensitiveNames = hasCaseSensitiveNames(metadata, session, source.getCatalogName());
+        String targetName = canonicalName(statement.getTarget(), caseSensitiveNames);
+        CatalogSchemaName target = caseSensitiveCatalogSchemaName(source.getCatalogName(), targetName);
 
         if (!metadata.schemaExists(session, source)) {
             throw semanticException(SCHEMA_NOT_FOUND, statement, "Schema '%s' does not exist", source);
@@ -71,9 +76,11 @@ public class RenameSchemaTask
             throw semanticException(SCHEMA_ALREADY_EXISTS, statement, "Target schema '%s' already exists", target);
         }
 
-        accessControl.checkCanRenameSchema(session.toSecurityContext(), source, statement.getTarget().getValue());
+        accessControl.checkCanRenameSchema(session.toSecurityContext(), source, targetName);
 
-        metadata.renameSchema(session, source, statement.getTarget().getValue());
+        // Connectors of catalogs without case-sensitive names have always received the target as written
+        String connectorTargetName = caseSensitiveNames ? targetName : statement.getTarget().getValue();
+        metadata.renameSchema(session, source, connectorTargetName);
 
         return immediateVoidFuture();
     }
